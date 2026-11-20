@@ -174,7 +174,7 @@ function start(items, title, blocks = null, routeStep = null) {
     return;
   }
   if (page !== "result") previousPage = page;
-  session = {items, title, blocks, routeStep, answers: [], picked: -1, deadline: Date.now() + 20 * 60000, extra: false, passed: false};
+  session = {items, title, blocks, routeStep, answers: [], choiceOrders: [], picked: -1, deadline: Date.now() + 20 * 60000, extra: false, passed: false};
   navigate("study");
   if (blocks) ticker = setInterval(updateTimer, 250);
 }
@@ -212,14 +212,15 @@ function renderQuestion() {
   const show = picked >= 0 && !blocks;
   const note = n === 0 && !blocks ? lessonNote(session.routeStep?.topic ?? session.title) : "";
   const right = picked === q.correct;
-  const options = q.choices.map((choice, i) => {
+  const order = session.choiceOrders[n] ??= shuffled(q.choices.keys());
+  const options = order.map((i, position) => {
     const correctOption = show && i === q.correct;
     const incorrectPick = show && picked === i && !correctOption;
     const variant = correctOption ? " right" : incorrectPick ? " wrong" : picked === i ? " selected" : "";
     return '<button class="answer' + variant + '" data-action="choose" data-value="' + i +
       '" aria-pressed="' + (picked === i) + '"' + (show ? " disabled" : "") +
-      '><span class="answer-letter" aria-hidden="true">' + "АБВГД"[i] + '</span><span>' +
-      escape(choice) + (correctOption || incorrectPick ? '<span class="answer-state">' +
+      '><span class="answer-letter" aria-hidden="true">' + "АБВГД"[position] + '</span><span>' +
+      escape(q.choices[i]) + (correctOption || incorrectPick ? '<span class="answer-state">' +
       (correctOption ? "Правильный ответ" : "Ваш ответ") + '</span>' : '') + '</span></button>';
   }).join("");
   const mode = blocks ? (extra ? "Дополнительный блок" : "Экзамен") : session.title;

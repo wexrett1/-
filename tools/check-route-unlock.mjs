@@ -27,11 +27,19 @@ const click = (action, value = "") => handlers.click({
   target: {closest: () => ({dataset: {action, value}})}
 });
 const saved = () => JSON.parse(persisted.get(progressKey));
+const displayedChoices = () => [...screen.innerHTML.matchAll(
+  /<button class="answer[^"]*" data-action="choose" data-value="(\d+)"/g
+)].map(match => Number(match[1]));
 function answerLesson(withError) {
   for (const [index, question] of initial.items.entries()) {
     const wrong = withError && index === 0;
     const choice = wrong ? (question.correct + 1) % question.choices.length : question.correct;
+    const order = displayedChoices();
+    assert.equal(order.length, question.choices.length);
+    assert.deepEqual([...order].sort((a, b) => a - b), [...question.choices.keys()]);
     click("choose", String(choice));
+    assert.deepEqual(displayedChoices(), order, "feedback cannot move the answers");
+    assert.match(screen.innerHTML, new RegExp('class="answer right" data-action="choose" data-value="' + question.correct + '"'));
     click("next");
   }
 }
@@ -39,12 +47,17 @@ function answerLesson(withError) {
 assert.deepEqual(saved().routeDone, [], "an incorrectly credited legacy lesson must be repaired");
 click("course-step", next.id);
 assert.match(screen.innerHTML, /course-map/, "a locked lesson cannot be started");
+Math.random = () => 0;
 click("course-step", initial.id);
+const initialOrder = displayedChoices();
+assert.notDeepEqual(initialOrder, [...initial.items[0].choices.keys()], "the initial order is shuffled");
 answerLesson(true);
 assert.match(screen.innerHTML, /Есть ошибки/);
 assert.match(screen.innerHTML, /data-action="retry-stage"/);
 assert.deepEqual(saved().routeDone, []);
+Math.random = () => 0.9999;
 click("retry-stage");
+assert.notDeepEqual(displayedChoices(), initialOrder, "a fresh attempt gets a new order");
 answerLesson(false);
 assert.match(screen.innerHTML, /Урок пройден/);
 assert.deepEqual(saved().routeDone, [initial.id]);
