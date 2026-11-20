@@ -175,9 +175,8 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .panel { padding: clamp(18px, 4vw, 30px); border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
 .narrow { width: 100%; max-width: 700px; margin-inline: auto; }
 .section { margin-top: 22px; }
-.page-heading { padding-top: 6px; }
 .eyebrow { color: var(--green); font-size: .875rem; font-weight: 650; margin-bottom: 7px; }
-.metrics, .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .metric, .card { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 12px; }
 .metric strong {
   display: block; font-size: clamp(1.2rem, 4vw, 1.6rem);
@@ -187,13 +186,36 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .card { color: var(--ink); text-align: left; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
 .card:hover { border-color: #778370; }
 .card b { color: var(--green); }
-.ticket-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-.ticket-card { justify-content: space-between; min-height: 91px; }
-.ticket-number { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-.ticket-progress { color: var(--muted); font-size: .875rem; }
-.ticket-complete { border-color: #74886d; background: #252e26; }
-.mini-track { height: 3px; border-radius: 99px; overflow: hidden; background: #414c41; }
-.mini-track i { display: block; height: 100%; background: var(--green); }
+.ticket-index { width: min(100%, 850px); margin-inline: auto; }
+.ticket-head {
+  display: flex; align-items: end; justify-content: space-between; gap: 14px;
+  padding: 14px 0; border-bottom: 1px solid #5d6958;
+}
+.ticket-head h1 { margin: 0; }
+.ticket-head-progress { display: grid; justify-items: end; gap: 3px; margin: 0; color: var(--muted); font-size: .875rem; }
+.ticket-head-progress strong, .ticket-number, .ticket-progress { font-variant-numeric: tabular-nums; }
+.ticket-head-progress strong { color: var(--green); font-size: 1.65rem; line-height: 1; }
+.ticket-head-progress strong span { color: var(--muted); font-size: .9rem; font-weight: 550; }
+.ticket-legend { margin: 12px 0 22px; color: var(--muted); font-size: .875rem; }
+.ticket-group { margin: 0 0 20px; }
+.ticket-group h2 { color: #c9d2c3; font-size: .875rem; font-weight: 650; margin: 0 0 7px; }
+.ticket-grid {
+  display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px;
+  list-style: none; padding: 0; margin: 0;
+}
+.ticket-card {
+  text-align: left; display: grid; align-content: center; gap: 6px; width: 100%; min-height: 72px;
+  padding: 9px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 5px;
+}
+.ticket-card:hover { border-color: #889582; }
+.ticket-number { font-size: clamp(1.2rem, 4.7vw, 1.45rem); font-weight: 680; line-height: 1; }
+.ticket-progress { color: var(--muted); font-size: .875rem; line-height: 1; white-space: nowrap; }
+.ticket-in-progress .ticket-progress { color: var(--accent); }
+.ticket-complete { background: #273125; border-color: #62745a; }
+.ticket-complete .ticket-number, .ticket-complete .ticket-progress { color: var(--green); }
+.mini-track { height: 2px; background: #414c41; }
+.mini-track i { display: block; height: 100%; background: var(--accent); }
+.ticket-complete .mini-track i { background: var(--green); }
 .primary, .secondary {
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
   padding: 8px 13px; border-radius: 6px; font-weight: 680; color: var(--accent-ink);
@@ -355,6 +377,8 @@ footer a { color: inherit; text-underline-offset: 3px; }
 
 @media (max-width: 820px) {
   .course-layout { grid-template-columns: minmax(0, 1fr) 189px; gap: 16px; }
+}
+@media (max-width: 735px) {
   .ticket-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (max-width: 650px) {
@@ -379,15 +403,14 @@ footer a { color: inherit; text-underline-offset: 3px; }
   .course-select select { font-size: .875rem; }
   .course-steps { --track-width: clamp(105px, 34%, 164px); --step-height: 76px; --disc-size: 46px; }
   .course-sidebar { position: static; margin-top: 17px; }
-  .ticket-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .ticket-card { padding: 8px; min-height: 78px; }
+  .ticket-card { padding: 7px; min-height: 64px; }
   .question-header { gap: 5px; }
   .question-body .question-image { max-height: 226px; }
   .question-actions .primary { width: 100%; }
   .result-actions .primary, .result-actions .secondary { flex: 1 1 auto; }
 }
 @media (max-width: 360px) {
-  .ticket-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ticket-grid { gap: 4px; }
   .course-steps { --step-height: 83px; }
   .resume-copy strong { font-size: .95rem; }
 }

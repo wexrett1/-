@@ -18,6 +18,7 @@ const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
 };
 let questions = [], topics = [], byId = new Map();
+const byTicket = new Map();
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
 let billing = {active: false, enabled: false, price: 199};
@@ -188,22 +189,40 @@ function renderActivity(answered) {
     (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
 }
 
+function renderTickets() {
+  const entries = [...byTicket.keys()].sort((a, b) => a - b).map(ticket => {
+    const items = byTicket.get(ticket);
+    const correct = items.filter(q => progress.answers[q.id]?.wrong === false).length;
+    return {ticket, correct, total: items.length};
+  });
+  const complete = entries.filter(({correct, total}) => correct === total).length;
+  const sections = [];
+  for (let start = 0; start < entries.length; start += 10) {
+    const group = entries.slice(start, start + 10);
+    const range = ordinal(group[0].ticket) + '–' + ordinal(group[group.length - 1].ticket);
+    const buttons = group.map(({ticket, correct, total}) => {
+      const state = correct === total ? ' ticket-complete' : correct ? ' ticket-in-progress' : '';
+      return '<li><button class="ticket-card' + state + '" data-action="ticket" data-value="' + ticket +
+        '" aria-label="Билет ' + ticket + '. Верных ответов: ' + correct + ' из ' + total + '">' +
+        '<span class="ticket-number">' + ordinal(ticket) + '</span>' +
+        '<span class="ticket-progress">' + correct + '/' + total + '</span>' +
+        '<span class="mini-track" aria-hidden="true"><i style="width:' + (100 * correct / total) + '%"></i></span></button></li>';
+    }).join("");
+    sections.push('<section class="ticket-group" aria-labelledby="ticket-group-' + start + '"><h2 id="ticket-group-' + start +
+      '">Билеты ' + range + '</h2><ul class="ticket-grid">' + buttons + '</ul></section>');
+  }
+  app.innerHTML = '<section class="ticket-index" aria-labelledby="ticket-title"><header class="ticket-head">' +
+    '<div><p class="eyebrow">Категории А и В</p><h1 id="ticket-title">Билеты ПДД</h1></div>' +
+    '<p class="ticket-head-progress"><strong>' + complete + '<span> / ' + entries.length +
+    '</span></strong><span>Решено</span></p></header>' +
+    '<p class="ticket-legend">Здесь учитываются ответы из билетов, уроков и экзамена.</p>' + sections.join("") + '</section>';
+}
+
 function render() {
   updateStreakBadge();
   const answered = Object.keys(progress.answers).filter(id => byId.has(id)).length;
   if (page === "home") renderCourse();
-  if (page === "tickets") {
-    app.innerHTML = '<div class="page-heading"><p class="eyebrow"><span></span> Категории A и B</p><h1>Билеты ПДД</h1>' +
-      '<p class="muted">40 билетов · 800 вопросов</p></div>' +
-      '<div class="section grid ticket-grid">' + Array.from({length: 40}, (_, i) => {
-        const ticket = i + 1;
-        const count = questions.filter(q => q.ticket === ticket && progress.answers[q.id]).length;
-        return '<button class="card ticket-card' + (count === 20 ? ' ticket-complete' : '') +
-          '" data-action="ticket" data-value="' + ticket + '" aria-label="Билет ' + ticket + '">' +
-          '<span class="ticket-number">' + String(ticket).padStart(2, "0") + '</span><span class="ticket-progress">' +
-          count + ' из 20</span><span class="mini-track"><i style="width:' + count * 5 + '%"></i></span></button>';
-      }).join("") + "</div>";
-  }
+  if (page === "tickets") renderTickets();
   if (page === "exam") {
     app.innerHTML = panel("Пробный экзамен",
       '<div class="exam-facts">' + stat("Вопросов", 20) + stat("Минут", 20) + '</div>' +
@@ -384,7 +403,7 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const leaveLabel = session.routeStep ? "К маршруту" : "Продолжить обучение";
+  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" : "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
   const rows = session.items.map((q, index) => {
     const selected = session.answers[index]?.selected;
@@ -462,7 +481,7 @@ document.addEventListener("click", event => {
   const {action, value} = target.dataset;
   switch (action) {
     case "navigate": navigate(value); break;
-    case "ticket": start(questions.filter(q => q.ticket === Number(value)), "Билет " + value); break;
+    case "ticket": start(byTicket.get(Number(value)) ?? [], "Билет " + value); break;
     case "topic": start(prioritized(topicStats(topics[Number(value)]).items).slice(0, 5), topics[Number(value)]); break;
     case "course-current": {
       if (page !== "home") navigate("home");
@@ -574,6 +593,10 @@ async function init() {
       questions = await response.json();
     }
     byId = new Map(questions.map(q => [q.id, q]));
+    for (const question of questions) {
+      if (!byTicket.has(question.ticket)) byTicket.set(question.ticket, []);
+      byTicket.get(question.ticket).push(question);
+    }
     chapters = buildCourse(questions);
     if (progress.routePassVersion !== 1) {
       completedRoute = restoreCourseCompletions(chapters, completedRoute, progress.answers);
