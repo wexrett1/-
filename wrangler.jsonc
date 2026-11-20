@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pdd-marshrut",
+  "main": "worker.mjs",
+  "compatibility_date": "2025-08-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/config.js"]
+  },
+  "vars": {"RSY_BLOCK_ID": "", "SUPPORT_CONTACT": ""},
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pdd-marshrut",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

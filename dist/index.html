@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Билеты ПДД, короткие уроки и пробный экзамен для подготовки на права.">
+<meta name="theme-color" content="#f3f4ec">
+<title>Маршрут ПДД — тренажёр</title>
+<link rel="stylesheet" href="./style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="header-inner">
+    <button class="brand" data-page="home" aria-label="Маршрут ПДД — главная"><span class="mark" aria-hidden="true"><i></i></span><span>Маршрут <b>ПДД</b></span></button>
+    <nav aria-label="Разделы">
+      <button data-page="home"><span class="nav-icon" aria-hidden="true">⌂</span>Обучение</button>
+      <button data-page="tickets"><span class="nav-icon" aria-hidden="true">▤</span>Билеты</button>
+      <button data-page="exam"><span class="nav-icon" aria-hidden="true">◷</span>Экзамен</button>
+      <button data-page="profile"><span class="nav-icon" aria-hidden="true">▥</span>Прогресс</button>
+    </nav>
+    <button data-page="pro" class="pro-link"><span aria-hidden="true">✦</span> Pro</button>
+  </div>
+</header>
+<main id="app"><p class="panel narrow" role="status">Загружаем билеты…</p></main>
+<footer><span>Маршрут ПДД</span><a href="https://github.com/etspring/pdd_russia" target="_blank" rel="noopener">Источник билетов</a></footer>
+</body></html>
