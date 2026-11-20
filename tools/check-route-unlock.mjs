@@ -66,6 +66,8 @@ assert.equal(saved().days.length, 1);
 assert.deepEqual(saved().routeDone, [initial.id]);
 click("course-current");
 assert.ok(screen.innerHTML.includes('data-value="' + next.id + '" aria-current="step"'));
+const resume = screen.innerHTML.match(/<div class="route-resume">[\s\S]*?<button[^>]+data-action="course-step" data-value="([^"]+)"/);
+assert.equal(resume?.[1], next.id, "the quick-start button follows the newly unlocked stage");
 click("course-step", initial.id);
 answerLesson(true);
 assert.deepEqual(saved().routeDone, [initial.id], "an unsuccessful replay must not revoke an already passed lesson");

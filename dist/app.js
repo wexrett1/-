@@ -83,16 +83,23 @@ function renderCourse() {
       (completed ? ' aria-label="' + escape(label + " — пройдено") + '"' : '') +
       '>' + node + '</button></li>';
   }).join("");
-  const switchToCurrent = current.step ? button("К текущему этапу", "course-current", "", "secondary") : "";
+  const nextStep = current.step;
+  const resume = nextStep ? '<div class="route-resume"><div class="resume-copy"><span>Текущий этап</span><strong>' +
+    escape(nextStep.title) + '</strong><small>' +
+    escape(nextStep.kind === "exam" ? "20 вопросов · 20 минут" :
+      nextStep.kind === "review" ? "Повтори вопросы последних уроков" : nextStep.items.length + " вопр. с пояснениями") +
+    '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : "Начать", "course-step", nextStep.id, "primary") +
+    '</div>' : '<p class="course-finished" role="status">Маршрут пройден</p>';
   const select = '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
     chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
       '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
   app.innerHTML = '<div class="course-layout"><section class="course-map"><div class="course-head">' +
-    '<p class="course-kicker">Раздел ' + (index + 1) + ' из ' + chapters.length + '</p><h1>' + escape(chapter.title) + '</h1>' +
+    '<div class="course-meta"><p class="course-kicker">Раздел ' + (index + 1) + ' из ' + chapters.length +
+    '</p><span class="category-chip">Категории А и В</span></div><h1>' + escape(chapter.title) + '</h1>' +
     '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
     '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + lessons.length +
-    ' уроков</span></div><div class="course-tools">' + select + switchToCurrent + '</div>' +
-    (!current.step ? '<p class="course-finished" role="status">Маршрут пройден</p>' : '') +
+    ' уроков</span></div>' + resume + '<div class="course-tools">' + select +
+    (nextStep ? button("На карте", "course-current", "", "secondary") : "") + '</div>' +
     '</div><ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
     '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Твой прогресс</h2>' +
     '<div class="metrics">' + stat("Вопросов", Object.keys(progress.answers).filter(id => byId.has(id)).length + " / " + questions.length) +
@@ -469,14 +476,17 @@ document.addEventListener("click", event => {
     case "navigate": navigate(value); break;
     case "ticket": start(questions.filter(q => q.ticket === Number(value)), "Билет " + value); break;
     case "topic": start(prioritized(topicStats(topics[Number(value)]).items).slice(0, 5), topics[Number(value)]); break;
-    case "course-current":
+    case "course-current": {
       if (page !== "home") navigate("home");
       else {
         chapterView = null;
         render();
       }
-      app.querySelector?.('[aria-current="step"]')?.scrollIntoView({block: "center"});
+      const currentNode = app.querySelector?.('[aria-current="step"]');
+      currentNode?.focus({preventScroll: true});
+      currentNode?.scrollIntoView({block: "center"});
       break;
+    }
     case "course-step": {
       const {step: current} = currentCourseStep(chapters, completedRoute);
       const step = chapters.flatMap(chapter => chapter.steps).find(item => item.id === value);

@@ -289,3 +289,28 @@ footer { width: min(var(--width), calc(100% - 40px)); margin: auto auto 0; paddi
 .streak-rule { color: #c1ccda; font-size: .875rem; line-height: 1.35; margin: 11px 0 0; }
 .streak-earned { background: #3e3021; color: #ffdfb1; border: 1px solid #8c633b; border-radius: 8px; padding: 9px 12px; font-weight: 680; }
 .streak-earned span { margin-right: 5px; }
+
+.course-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 9px; }
+.course-meta .course-kicker { margin: 0; }
+.category-chip {
+  color: #d9ecff; background: #0e2236cf; border: 1px solid #41607c; padding: 4px 8px;
+  border-radius: 8px; font-size: .875rem; font-weight: 650;
+}
+.route-resume {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  max-width: 545px; margin-top: 15px; padding: 11px 14px;
+  border-radius: 12px; border: 1px solid #9c7141; border-left: 3px solid var(--amber);
+  background: linear-gradient(105deg,#2c251ffd,#142236f6 79%); box-shadow: 0 5px 20px #050b1490;
+}
+.resume-copy { display: grid; min-width: 0; gap: 2px; }
+.resume-copy span { color: #ffd093; font-size: .875rem; }
+.resume-copy strong { line-height: 1.2; }
+.resume-copy small { color: #c2d2e2; font-size: .875rem; }
+.route-resume .primary { flex: none; }
+.secondary:disabled { opacity: .5; }
+@media (max-width: 650px) {
+  .route-resume { padding: 9px 10px; margin-top: 12px; gap: 7px; }
+  .resume-copy strong { font-size: .98rem; }
+  .route-resume .primary { padding-inline: 9px; min-height: 42px; font-size: .875rem; }
+  .category-chip { font-size: .875rem; }
+}
