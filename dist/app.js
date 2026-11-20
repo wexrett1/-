@@ -115,8 +115,9 @@ function navigate(destination) {
   clearInterval(ticker);
   page = destination;
   if (page === "home") chapterView = null;
+  const activePage = page === "study" ? previousPage : page;
   for (const link of document.querySelectorAll("nav [data-page]")) {
-    if (link.dataset.page === (page === "study" ? previousPage : page)) link.setAttribute("aria-current", "page");
+    if (link.dataset.page === (activePage === "saved" ? "profile" : activePage)) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
   render();
@@ -303,9 +304,9 @@ function renderQuestion() {
     '" role="progressbar" aria-label="Прогресс занятия" aria-valuemin="0" aria-valuemax="' + items.length +
     '" aria-valuenow="' + answeredCount + '">' + indicators + '</div></div>' +
     '<div class="question-body">' +
+    (blocks ? "" : '<div class="question-bookmark"><span>Билет ' + q.ticket + ' · № ' + q.num + '</span>' + bookmarkButton(q) + '</div>') +
     (note ? '<p class="lesson-note">' + escape(note) + '</p>' : '') +
     '<h2>' + escape(q.text) + '</h2>' + questionImage(q) +
-    (blocks ? "" : '<div class="question-bookmark">' + bookmarkButton(q) + '</div>') +
     '<div class="answers">' + options + '</div>' +
     (show ? '<section id="answer-explanation" class="explanation-panel ' + (right ? 'is-right' : 'is-wrong') +
       '" tabindex="-1" aria-label="Разбор ответа"><div class="explanation-heading"><span aria-hidden="true">' +
@@ -374,6 +375,7 @@ function renderResult() {
   if (session.blocks) title = session.passed ? "Экзамен сдан" : "Экзамен не сдан";
   const routeTraining = Boolean(session.routeStep && !session.blocks);
   const retry = routeTraining && !session.passed;
+  const failed = (session.blocks || routeTraining) && !session.passed;
   if (routeTraining) {
     title = session.passed ?
       (session.routeStep.kind === "review" ? "Повторение пройдено" : "Урок пройден") :
@@ -400,7 +402,7 @@ function renderResult() {
   }).join("");
   app.innerHTML = '<section class="panel narrow result-panel"><div class="result-top"><div><h1>' + escape(title) +
     '</h1><p>' + escape(message) +
-    '</p></div><div class="score"><strong>' + correct + ' / ' + session.items.length +
+    '</p></div><div class="score' + (failed ? ' is-failed' : '') + '"><strong>' + correct + ' / ' + session.items.length +
     '</strong><span>Верных ответов</span></div></div>' +
     '<div class="result-body">' + (session.ignited ?
       '<p class="streak-earned" role="status">' + flameIcon + ' Огонёк за сегодня зажжён</p>' : '') +
