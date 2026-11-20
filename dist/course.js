@@ -42,6 +42,7 @@ const course = [
 ];
 
 const lessonSize = 5;
+const lessonsPerCheckpoint = 4;
 
 export function buildCourse(questions) {
   const remaining = new Set(questions);
@@ -54,12 +55,12 @@ export function buildCourse(questions) {
       return {topic, label, items};
     });
     const steps = makeLessons(id, groups);
-    if (steps.length) chapters.push(withReview(id, title, steps, groups.flatMap(group => group.items)));
+    if (steps.length) chapters.push(withReviews(id, title, steps));
   }
   if (remaining.size) {
     const id = "other";
     const items = [...remaining];
-    chapters.push(withReview(id, "Другие вопросы", makeLessons(id, [{label: "Смешанная практика", items}]), items));
+    chapters.push(withReviews(id, "Другие вопросы", makeLessons(id, [{label: "Смешанная практика", items}])));
   }
   chapters.at(-1)?.steps.push({id: "course-exam", kind: "exam", title: "Пробный экзамен"});
   return chapters;
@@ -76,8 +77,18 @@ function makeLessons(chapter, groups) {
   return steps;
 }
 
-function withReview(id, title, steps, items) {
-  return {id, title, steps: [...steps, {id: id + "/review", kind: "review", title: "Повторение", items}]};
+function withReviews(id, title, lessons) {
+  const steps = [];
+  for (let i = 0; i < lessons.length; i += lessonsPerCheckpoint) {
+    const group = lessons.slice(i, i + lessonsPerCheckpoint);
+    steps.push(...group, {
+      id: id + "/review/" + group[0].items[0].id,
+      kind: "review",
+      title: "Повторение",
+      items: group.flatMap(lesson => lesson.items),
+    });
+  }
+  return {id, title, steps};
 }
 
 export function currentCourseStep(chapters, completed) {

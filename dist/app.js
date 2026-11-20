@@ -54,6 +54,7 @@ function renderCourse() {
   const lessons = chapter.steps.filter(step => step.kind === "lesson");
   const completedLessons = lessons.filter(step => completedRoute.has(step.id)).length;
   const index = chapters.indexOf(chapter);
+  let lessonNumber = 0;
   const route = chapter.steps.map((step, i) => {
     const completed = completedRoute.has(step.id);
     const active = step === current.step;
@@ -62,11 +63,13 @@ function renderCourse() {
     const nextOffset = routeOffsets[(i + 1) % routeOffsets.length];
     const glyph = active ? "▶" : step.kind === "review" ? "↻" : step.kind === "exam" ? "⚑" : completed ? "✓" : "";
     const icon = glyph ? '<span aria-hidden="true">' + glyph + '</span>' : '<span class="course-lock" aria-hidden="true"></span>';
-    const info = completed ? "Пройдено" : step.kind === "review" ? "Вопросы из раздела" :
-      step.kind === "exam" ? "20 вопросов · 20 минут" : "Урок " + (i + 1) + " · " + step.items.length + " вопр.";
+    const lesson = step.kind === "lesson";
+    const title = lesson ? "Урок " + (++lessonNumber) : step.title;
+    const info = lesson ? step.title : step.kind === "review" ? "Недавние вопросы" : "20 вопросов · 20 минут";
+    const label = lesson ? title + ". " + step.title : title;
     const node = '<span class="course-track"><span class="course-disc">' + icon + (completed && step.kind !== "lesson" ? '<span class="course-check" aria-hidden="true">✓</span>' : '') +
-      '</span></span><span class="course-caption"><strong>' + escape(step.title) +
-      '</strong><span class="course-detail">' + info + '</span>' +
+      '</span></span><span class="course-caption"><strong>' + escape(title) +
+      '</strong><span class="course-detail">' + escape(info) + '</span>' +
       (active ? '<span class="course-cta">' +
         (step.kind === "exam" ? "Начать экзамен" : step.kind === "review" ? "Начать повторение" : "Начать урок") +
         '</span>' : '') + '</span>';
@@ -75,7 +78,8 @@ function renderCourse() {
         offset + '" data-to="' + nextOffset + '" data-active="' + completed + '"></canvas>' : '') +
       '<button class="course-node ' + (active ? "is-current" : completed ? "is-complete" : "is-locked") +
       '" data-action="course-step" data-value="' + escape(step.id) + '"' +
-      (active ? ' aria-current="step"' : '') + (locked ? ' disabled aria-label="' + escape(step.title + " — этап закрыт") + '"' : '') +
+      (active ? ' aria-current="step"' : '') + (locked ? ' disabled aria-label="' + escape(label + " — этап закрыт") + '"' : '') +
+      (completed ? ' aria-label="' + escape(label + " — пройдено") + '"' : '') +
       '>' + node + '</button></li>';
   }).join("");
   const switchToCurrent = current.step ? button("К текущему этапу", "course-current", "", "secondary") : "";
