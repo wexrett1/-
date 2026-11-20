@@ -19,7 +19,7 @@ const save = () => {
 let questions = [], topics = [], byId = new Map();
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
-let billing = {active: false, enabled: false, price: 199, adBlock: ""};
+let billing = {active: false, enabled: false, price: 199, adBlock: config.adBlock ?? ""};
 let adCounter = 0, adLoader;
 
 function escape(value) {
@@ -322,12 +322,13 @@ function renderResult() {
 }
 function showAd() {
   if (!billing.adBlock || billing.active || session.adShown || !/^R-A-\d+-\d+$/.test(billing.adBlock)) return;
+  if (location.protocol !== "https:") return;
   const day = localDay();
   try { if (localStorage.getItem("pdd-ad-day") === day) return; } catch {}
   const slot = document.createElement("div");
   slot.className = "ad-slot";
   slot.id = "pdd-ad-" + (++adCounter);
-  app.querySelector(".panel").append(slot);
+  app.querySelector(".result-actions").after(slot);
   if (!adLoader) {
     adLoader = new Promise((resolve, reject) => {
       window.yaContextCb ||= [];
@@ -344,15 +345,21 @@ function showAd() {
     if (!slot.isConnected || billing.active) return;
     window.yaContextCb.push(() => {
       if (!slot.isConnected || billing.active) return;
-      window.Ya.Context.AdvManager.render({
-        blockId: billing.adBlock, renderTo: slot.id,
-        onRender: () => {
-          current.adShown = true;
-          try { localStorage.setItem("pdd-ad-day", day); } catch {}
-        },
-        onError: () => slot.remove(),
-        onStub: () => slot.remove()
-      });
+      const ads = window.Ya?.Context?.AdvManager;
+      if (!ads) { slot.remove(); return; }
+      try {
+        ads.render({
+          blockId: billing.adBlock,
+          renderTo: slot.id,
+          onError: event => { if (event.type === "error") slot.remove(); },
+          onRender: () => {
+            current.adShown = true;
+            try { localStorage.setItem("pdd-ad-day", day); } catch {}
+          }
+        }, () => slot.remove());
+      } catch {
+        slot.remove();
+      }
     });
   }).catch(() => { slot.remove(); adLoader = null; });
 }

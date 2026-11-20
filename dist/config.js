@@ -1,4 +1,5 @@
 export const config = {
   apiBase: "",
-  siteOnly: true
+  siteOnly: true,
+  adBlock: ""
 };
