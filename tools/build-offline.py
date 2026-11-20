@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parents[1] / "dist"
-MODULES = ("config.js", "route-art.js", "course.js", "lesson-notes.js", "study.js", "app.js")
+MODULES = ("config.js", "course.js", "lesson-notes.js", "study.js", "app.js")
 
 
 def read(name):
@@ -27,7 +27,7 @@ def build(output):
     for module in MODULES:
         source = re.sub(r"^import .*;\n", "", read(module), flags=re.M)
         scripts.append(re.sub(r"^export ", "", source, flags=re.M))
-    css = read("style.css").replace("./night-road.png", data_url(ASSETS / "night-road.png", "image/png"))
+    css = read("style.css")
     html = re.sub(r"<script[^\n]+</script>\n", "", read("index.html"))
     html = html.replace('<link rel="stylesheet" href="./style.css">', f"<style>\n{css}\n</style>")
     code = "\n".join(scripts)

@@ -1,5 +1,4 @@
 import {config} from "./config.js";
-import {drawRouteConnectors, routeOffsets} from "./route-art.js";
 import {buildCourse, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity} from "./study.js";
@@ -49,6 +48,10 @@ function topicStats(name) {
   const mastered = items.filter(q => progress.answers[q.id] && !progress.answers[q.id].wrong).length;
   return {items, mastered};
 }
+const routeOffsets = [36, 54, 68, 54, 36, 24];
+const ordinal = number => String(number).padStart(2, "0");
+const flameIcon = '<i class="flame" aria-hidden="true"></i>';
+
 function renderCourse() {
   const current = currentCourseStep(chapters, completedRoute);
   const chapter = chapters.find(item => item.id === chapterView) ?? current.chapter;
@@ -62,21 +65,17 @@ function renderCourse() {
     const locked = !completed && !active;
     const offset = routeOffsets[i % routeOffsets.length];
     const nextOffset = routeOffsets[(i + 1) % routeOffsets.length];
-    const glyph = active ? "▶" : step.kind === "review" ? "↻" : step.kind === "exam" ? "⚑" : completed ? "✓" : "";
-    const icon = glyph ? '<span aria-hidden="true">' + glyph + '</span>' : '<span class="course-lock" aria-hidden="true"></span>';
     const lesson = step.kind === "lesson";
     const title = lesson ? "Урок " + (++lessonNumber) : step.title;
-    const info = lesson ? step.title : step.kind === "review" ? "Недавние вопросы" : "20 вопросов · 20 минут";
+    const info = lesson ? step.title : step.kind === "review" ? "Вопросы из последних уроков" : "20 вопросов · 20 минут";
     const label = lesson ? title + ". " + step.title : title;
-    const node = '<span class="course-track"><span class="course-disc">' + icon + (completed && step.kind !== "lesson" ? '<span class="course-check" aria-hidden="true">✓</span>' : '') +
+    const symbol = completed ? "✓" : active ? '<i class="course-play"></i>' :
+      lesson ? ordinal(lessonNumber) : step.kind === "review" ? "↻" : "⚑";
+    const node = '<span class="course-track" aria-hidden="true"><span class="course-disc">' + symbol +
       '</span></span><span class="course-caption"><strong>' + escape(title) +
-      '</strong><span class="course-detail">' + escape(info) + '</span>' +
-      (active ? '<span class="course-cta">' +
-        (step.kind === "exam" ? "Начать экзамен" : step.kind === "review" ? "Начать повторение" : "Начать урок") +
-        '</span>' : '') + '</span>';
-    return '<li class="course-entry" style="--node-left:' + offset + '%">' +
-      (i < chapter.steps.length - 1 ? '<canvas class="course-connector" width="300" height="250" aria-hidden="true" data-from="' +
-        offset + '" data-to="' + nextOffset + '" data-active="' + completed + '"></canvas>' : '') +
+      '</strong><span class="course-detail">' + escape(info) + '</span></span>';
+    return '<li class="course-entry" style="--node-left:' + offset + '%;--node-next:' + nextOffset + '%">' +
+      (i < chapter.steps.length - 1 ? '<span class="course-connector' + (completed ? ' is-travelled' : '') + '" aria-hidden="true"></span>' : '') +
       '<button class="course-node ' + (active ? "is-current" : completed ? "is-complete" : "is-locked") +
       '" data-action="course-step" data-value="' + escape(step.id) + '"' +
       (active ? ' aria-current="step"' : '') + (locked ? ' disabled aria-label="' + escape(label + " — этап закрыт") + '"' : '') +
@@ -87,28 +86,28 @@ function renderCourse() {
   const resume = nextStep ? '<div class="route-resume"><div class="resume-copy"><span>Текущий этап</span><strong>' +
     escape(nextStep.title) + '</strong><small>' +
     escape(nextStep.kind === "exam" ? "20 вопросов · 20 минут" :
-      nextStep.kind === "review" ? "Повтори вопросы последних уроков" : nextStep.items.length + " вопр. с пояснениями") +
-    '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : "Начать", "course-step", nextStep.id, "primary") +
+      nextStep.kind === "review" ? "Вопросы из последних уроков" : "Вопросов: " + nextStep.items.length) +
+    '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : nextStep.kind === "review" ? "Повторить" :
+      completedRoute.size ? "Продолжить" : "Начать урок", "course-step", nextStep.id, "primary") +
     '</div>' : '<p class="course-finished" role="status">Маршрут пройден</p>';
   const select = '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
     chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
       '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
-  app.innerHTML = '<div class="course-layout"><section class="course-map"><div class="course-head">' +
-    '<div class="course-meta"><p class="course-kicker">Раздел ' + (index + 1) + ' из ' + chapters.length +
-    '</p><span class="category-chip">Категории А и В</span></div><h1>' + escape(chapter.title) + '</h1>' +
+  app.innerHTML = '<div class="course-layout"><section class="course-map" aria-labelledby="course-title"><div class="course-head">' +
+    '<p class="course-kicker">Раздел ' + ordinal(index + 1) + ' / ' + ordinal(chapters.length) +
+    '</p><h1 id="course-title">' + escape(chapter.title) + '</h1>' +
     '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
     '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + lessons.length +
-    ' уроков</span></div>' + resume + '<div class="course-tools">' + select +
-    (nextStep ? button("На карте", "course-current", "", "secondary") : "") + '</div>' +
-    '</div><ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
-    '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Твой прогресс</h2>' +
+    ' уроков</span></div></div>' + resume + '<div class="course-tools">' + select +
+    (nextStep ? button("К этапу", "course-current", "", "secondary") : "") + '</div>' +
+    '<ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
+    '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Прогресс</h2>' +
     '<div class="metrics">' + stat("Вопросов", Object.keys(progress.answers).filter(id => byId.has(id)).length + " / " + questions.length) +
     stat("Дней подряд", streak(progress.days)) + '</div></section>' +
     '<section class="dashboard-card"><h2>Практика</h2>' +
     '<button class="card practice-link" data-page="tickets"><strong>Все билеты</strong><small>40 билетов · 800 вопросов</small></button>' +
     '<button class="card practice-link" data-page="exam"><strong>Пробный экзамен</strong><small>20 вопросов · 20 минут</small></button>' +
     '</section></aside></div>';
-  drawRouteConnectors(app);
 }
 function navigate(destination) {
   if (!questions.length) return;
@@ -168,14 +167,14 @@ function renderActivity(answered) {
     (today ? ' aria-current="date"' : '') + ' aria-label="' +
     escape(longDate.format(date) + (done ? ", зачтено" : today ? ", тренировка ещё впереди" : ", пропуск")) +
     '"><span class="weekday" aria-hidden="true">' + escape(shortWeekday.format(date)) + '</span>' +
-    '<span class="week-flame" aria-hidden="true">' + (done ? '🔥' : '·') +
+    '<span class="week-flame" aria-hidden="true">' + (done ? flameIcon : '·') +
     '</span><time datetime="' + key + '" aria-hidden="true">' + date.getDate() + '</time></li>'
   ).join("");
   app.innerHTML = panel("Мой прогресс",
     '<section class="streak-panel"><div class="streak-panel-head"><div><h2>Серия тренировок</h2>' +
     '<p>' + (doneToday ? "Огонёк за сегодня зажжён." : "Заверши тренировку, чтобы зажечь огонёк.") + '</p></div>' +
     '<span class="streak-emblem' + (doneToday ? ' is-lit' : '') +
-    '" aria-hidden="true">🔥</span></div><div class="streak-totals">' +
+    '" aria-hidden="true">' + flameIcon + '</span></div><div class="streak-totals">' +
     stat("Дней подряд", current) + stat("Лучшая серия", best) +
     '</div><ol class="streak-calendar" aria-label="Последние семь дней">' + days +
     '</ol><p class="streak-rule">Огонёк за день даёт пройденный этап маршрута, тренировка от пяти вопросов или сданный экзамен.</p></section>' +
@@ -404,7 +403,7 @@ function renderResult() {
     '</p></div><div class="score"><strong>' + correct + ' / ' + session.items.length +
     '</strong><span>Верных ответов</span></div></div>' +
     '<div class="result-body">' + (session.ignited ?
-      '<p class="streak-earned" role="status"><span aria-hidden="true">🔥</span> Огонёк за сегодня зажжён</p>' : '') +
+      '<p class="streak-earned" role="status">' + flameIcon + ' Огонёк за сегодня зажжён</p>' : '') +
     '<div class="actions result-actions">' +
     (retry ? button("Повторить этап", "retry-stage", "", "primary") : "") +
     button(leaveLabel, leaveAction, previousPage, retry ? "secondary" : "primary") +

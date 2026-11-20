@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Билеты ПДД, короткие уроки и пробный экзамен для подготовки на права.">
-<meta name="theme-color" content="#081523">
+<meta name="theme-color" content="#161a17">
 <title>Маршрут ПДД — тренажёр</title>
 <link rel="stylesheet" href="./style.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -12,17 +12,17 @@
 <body>
 <header class="topbar">
   <div class="header-inner">
-    <button class="brand" data-page="home" aria-label="Маршрут ПДД — главная"><span class="mark" aria-hidden="true"><i></i></span><span>Маршрут <b>ПДД</b></span></button>
+    <button class="brand" data-page="home" aria-label="Маршрут ПДД — главная"><span class="mark" aria-hidden="true"><i></i></span><span>Маршрут<span class="brand-sub">ПДД</span></span></button>
     <nav aria-label="Разделы">
-      <button data-page="home"><span class="nav-icon" aria-hidden="true">◈</span>Путь</button>
-      <button data-page="tickets"><span class="nav-icon" aria-hidden="true">▤</span>Билеты</button>
-      <button data-page="exam"><span class="nav-icon" aria-hidden="true">◷</span>Экзамен</button>
+      <button data-page="home"><span class="nav-icon icon-route" aria-hidden="true"></span>Путь</button>
+      <button data-page="tickets"><span class="nav-icon icon-tickets" aria-hidden="true"></span>Билеты</button>
+      <button data-page="exam"><span class="nav-icon icon-exam" aria-hidden="true"></span>Экзамен</button>
     </nav>
     <div class="header-actions">
       <button data-page="profile" id="streak-badge" class="profile-link streak-badge" aria-label="Огоньки и прогресс">
-        <span class="flame" aria-hidden="true">🔥</span><span id="streak-count" aria-hidden="true">0</span>
+        <span class="flame" aria-hidden="true"></span><span id="streak-count" aria-hidden="true">0</span>
       </button>
-      <button data-page="pro" class="pro-link"><span aria-hidden="true">✦</span> Pro</button>
+      <button data-page="pro" class="pro-link">Pro</button>
     </div>
   </div>
 </header>
