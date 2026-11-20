@@ -218,17 +218,26 @@ function renderTickets() {
     '<p class="ticket-legend">Здесь учитываются ответы из билетов, уроков и экзамена.</p>' + sections.join("") + '</section>';
 }
 
+function renderExam() {
+  app.innerHTML = '<section class="exam-start narrow" aria-labelledby="exam-title">' +
+    '<header class="exam-start-head"><div class="exam-intro"><h1 id="exam-title">Пробный экзамен</h1>' +
+    '<p><strong>20 вопросов</strong> за 20 минут. Разбор после экзамена.</p></div>' +
+    '<div class="exam-dial" aria-hidden="true"><span>20:00</span></div></header>' +
+    '<div class="exam-start-body"><div class="exam-start-actions">' +
+    button("Начать экзамен", "exam", "", "primary") + '<p>Таймер запустится сразу после нажатия.</p></div>' +
+    '<h2>Как засчитывается экзамен</h2><dl class="exam-rules">' +
+    '<div><dt>Одна ошибка</dt><dd>Пять дополнительных вопросов и пять минут.</dd></div>' +
+    '<div><dt>Две ошибки</dt><dd>Если ошибки в разных блоках, добавятся 10 вопросов и 10 минут.</dd></div>' +
+    '<div><dt>Экзамен не сдан</dt><dd>Если вышло время, допущены три ошибки, две в одном блоке или любая ошибка в дополнительных вопросах.</dd></div>' +
+    '</dl></div></section>';
+}
+
 function render() {
   updateStreakBadge();
   const answered = Object.keys(progress.answers).filter(id => byId.has(id)).length;
   if (page === "home") renderCourse();
   if (page === "tickets") renderTickets();
-  if (page === "exam") {
-    app.innerHTML = panel("Пробный экзамен",
-      '<div class="exam-facts">' + stat("Вопросов", 20) + stat("Минут", 20) + '</div>' +
-      '<p>За каждую из первых двух ошибок добавляется блок из пяти вопросов, если ошибки сделаны в разных блоках. В дополнительных вопросах нужно ответить без ошибок.</p>' +
-      button("Начать экзамен", "exam", "", "primary"));
-  }
+  if (page === "exam") renderExam();
   if (page === "profile") renderActivity(answered);
   if (page === "saved") renderSavedQuestions();
   if (page === "pro") {
@@ -403,7 +412,8 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" : "Продолжить обучение";
+  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" :
+    session.blocks ? "К экзамену" : "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
   const rows = session.items.map((q, index) => {
     const selected = session.answers[index]?.selected;
