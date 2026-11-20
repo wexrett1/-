@@ -257,3 +257,35 @@ footer { width: min(var(--width), calc(100% - 40px)); margin: auto auto 0; paddi
 @media (max-width: 650px) {
   .course-select { width: auto; max-width: 245px; flex: 1 1 155px; }
 }
+
+.streak-badge { min-width: 57px; background: #223049; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.streak-badge.is-lit { color: #ffca74; background: #392a21; }
+.streak-badge .flame, .streak-emblem { filter: grayscale(.9); opacity: .75; }
+.streak-badge.is-lit .flame, .streak-emblem.is-lit { filter: none; opacity: 1; }
+.streak-panel {
+  background: radial-gradient(ellipse at 98% 0%, #583821 0, transparent 55%), #1b2534;
+  border: 1px solid #60482f; border-radius: 14px; padding: clamp(13px, 4vw, 24px); margin: 17px 0 13px;
+}
+.streak-panel-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.streak-panel-head h2 { margin-bottom: 6px; }
+.streak-panel-head p { color: #e2cfbc; margin: 0; }
+.streak-emblem {
+  display: grid; place-items: center; width: 50px; height: 50px; flex: none; border-radius: 13px;
+  font-size: 1.7rem; background: #463126; border: 1px solid #a77344;
+}
+.streak-totals, .profile-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.streak-totals { margin: 14px 0 12px; }
+.streak-totals .metric { background: #25262f; border-color: #624c3a; }
+.streak-totals .metric strong { color: #ffbf69; }
+.streak-calendar { list-style: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin: 0; padding: 0; }
+.streak-day {
+  min-width: 0; display: grid; justify-items: center; gap: 4px; border-radius: 8px;
+  border: 1px solid #3f4f61; background: #202b3b; padding: 5px 1px; color: #adbed0; font-size: .875rem;
+}
+.streak-day.is-lit { color: #ffcf8b; background: #413022; border-color: #8f6340; }
+.streak-day.is-today { border-color: var(--amber); }
+.week-flame { display: grid; place-items: center; height: 25px; font-size: 1.16rem; line-height: 1; }
+.weekday { text-transform: capitalize; font-weight: 680; }
+.streak-rule { color: #c1ccda; font-size: .875rem; line-height: 1.35; margin: 11px 0 0; }
+.streak-earned { background: #3e3021; color: #ffdfb1; border: 1px solid #8c633b; border-radius: 8px; padding: 9px 12px; font-weight: 680; }
+.streak-earned span { margin-right: 5px; }

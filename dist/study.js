@@ -38,3 +38,23 @@ export function streak(days, now = new Date()) {
   }
   return count;
 }
+export function studyActivity(days, now = new Date()) {
+  const daySet = new Set(days);
+  const today = localDay(now);
+  const history = [...daySet].filter(day => /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= today).sort();
+  let best = 0, run = 0, previous;
+  for (const day of history) {
+    const stamp = Date.parse(day);
+    run = stamp - previous === DAY ? run + 1 : 1;
+    best = Math.max(best, run);
+    previous = stamp;
+  }
+  const week = Array.from({length: 7}, (_, index) => {
+    const date = new Date(now);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() - 6 + index);
+    const key = localDay(date);
+    return {date, key, done: daySet.has(key), today: key === today};
+  });
+  return {current: streak(history, now), best, doneToday: daySet.has(today), week};
+}

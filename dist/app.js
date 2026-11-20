@@ -2,7 +2,7 @@ import {config} from "./config.js";
 import {drawRouteConnectors, routeOffsets} from "./route-art.js";
 import {buildCourse, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
-import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak} from "./study.js";
+import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity} from "./study.js";
 
 const app = document.querySelector("#app");
 const offlineData = globalThis.PDD_OFFLINE_DATA;
@@ -13,6 +13,7 @@ const progressKey = "pdd-progress-v1";
 let progress = {answers: {}, days: [], examDate: "", routeDone: []};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
+if (!Array.isArray(progress.days)) progress.days = [];
 const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
 };
@@ -116,7 +117,45 @@ function navigate(destination) {
   window.scrollTo(0, 0);
 }
 
+const shortWeekday = new Intl.DateTimeFormat("ru-RU", {weekday: "short"});
+const longDate = new Intl.DateTimeFormat("ru-RU", {day: "numeric", month: "long", weekday: "long"});
+
+function updateStreakBadge() {
+  const badge = document.querySelector("#streak-badge");
+  if (!badge) return;
+  const count = streak(progress.days);
+  badge.classList.toggle("is-lit", progress.days.includes(localDay()));
+  badge.querySelector("#streak-count").textContent = String(count);
+  badge.setAttribute("aria-label", "Огоньки и прогресс. Дней подряд: " + count);
+}
+
+function renderActivity(answered) {
+  const {current, best, doneToday, week} = studyActivity(progress.days);
+  const days = week.map(({date, key, done, today}) =>
+    '<li class="streak-day' + (done ? ' is-lit' : '') + (today ? ' is-today' : '') + '"' +
+    (today ? ' aria-current="date"' : '') + ' aria-label="' +
+    escape(longDate.format(date) + (done ? ", зачтено" : today ? ", тренировка ещё впереди" : ", пропуск")) +
+    '"><span class="weekday" aria-hidden="true">' + escape(shortWeekday.format(date)) + '</span>' +
+    '<span class="week-flame" aria-hidden="true">' + (done ? '🔥' : '·') +
+    '</span><time datetime="' + key + '" aria-hidden="true">' + date.getDate() + '</time></li>'
+  ).join("");
+  app.innerHTML = panel("Мой прогресс",
+    '<section class="streak-panel"><div class="streak-panel-head"><div><h2>Серия тренировок</h2>' +
+    '<p>' + (doneToday ? "Огонёк за сегодня зажжён." : "Заверши тренировку, чтобы зажечь огонёк.") + '</p></div>' +
+    '<span class="streak-emblem' + (doneToday ? ' is-lit' : '') +
+    '" aria-hidden="true">🔥</span></div><div class="streak-totals">' +
+    stat("Дней подряд", current) + stat("Лучшая серия", best) +
+    '</div><ol class="streak-calendar" aria-label="Последние семь дней">' + days +
+    '</ol><p class="streak-rule">Огонёк за день даёт пройденный этап маршрута, завершённая тренировка или сданный экзамен.</p></section>' +
+    '<div class="metrics profile-metrics">' + stat("Вопросов решено", answered) +
+    stat("Ошибок к повторению", errors().length) + '</div><div class="actions">' +
+    button("На маршрут", "navigate", "home", "primary") +
+    button("Повторить ошибки", "mistakes", "", "secondary", !errors().length) +
+    (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
+}
+
 function render() {
+  updateStreakBadge();
   const answered = Object.keys(progress.answers).filter(id => byId.has(id)).length;
   if (page === "home") renderCourse();
   if (page === "tickets") {
@@ -137,12 +176,7 @@ function render() {
       '<p>За каждую из первых двух ошибок добавляется блок из пяти вопросов, если ошибки сделаны в разных блоках. В дополнительных вопросах нужно ответить без ошибок.</p>' +
       button("Начать экзамен", "exam", "", "primary"));
   }
-  if (page === "profile") {
-    app.innerHTML = panel("Мой прогресс", '<div class="metrics">' + stat("Вопросов решено", answered) +
-      stat("Ошибок к повторению", errors().length) + stat("Дней подряд", streak(progress.days)) + '</div>' +
-      '<div class="actions">' + button("Повторить ошибки", "mistakes", "", "primary", !errors().length) +
-      (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
-  }
+  if (page === "profile") renderActivity(answered);
   if (page === "pro") {
     const date = progress.examDate;
     const daysLeft = date ? Math.max(0, Math.round((Date.parse(date) - Date.parse(localDay())) / DAY)) : 0;
@@ -190,7 +224,6 @@ function record(q, selected) {
   const prior = progress.answers[q.id];
   const level = right ? Math.min((prior?.level ?? 0) + 1, 4) : 0;
   progress.answers[q.id] = {wrong: !right, level, due: Date.now() + [1, 1, 3, 7, 14][level] * DAY};
-  if (!progress.days.includes(localDay())) progress.days.push(localDay());
   save();
 }
 function questionImage(question, lazy = false) {
@@ -279,11 +312,19 @@ function finish() {
     session.passed = session.answers.length === session.items.length &&
       session.answers.every(({q, selected}) => selected === q.correct);
   }
+  const trainingComplete = !session.blocks && !session.routeStep &&
+    session.answers.length === session.items.length;
+  const date = localDay();
+  if ((session.passed || trainingComplete) && !progress.days.includes(date)) {
+    progress.days.push(date);
+    session.ignited = true;
+  }
   if (session.routeStep && session.passed) {
     completedRoute.add(session.routeStep.id);
     progress.routeDone = [...completedRoute];
-    save();
   }
+  save();
+  updateStreakBadge();
   page = "result";
   clearInterval(ticker);
   renderResult();
@@ -324,7 +365,9 @@ function renderResult() {
     '</h1><p>' + escape(message) +
     '</p></div><div class="score"><strong>' + correct + ' / ' + session.items.length +
     '</strong><span>Верных ответов</span></div></div>' +
-    '<div class="result-body"><div class="actions result-actions">' +
+    '<div class="result-body">' + (session.ignited ?
+      '<p class="streak-earned" role="status"><span aria-hidden="true">🔥</span> Огонёк за сегодня зажжён</p>' : '') +
+    '<div class="actions result-actions">' +
     (retry ? button("Повторить этап", "retry-stage", "", "primary") : "") +
     button(leaveLabel, leaveAction, previousPage, retry ? "secondary" : "primary") +
     (!retry && errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
