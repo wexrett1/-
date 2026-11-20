@@ -10,10 +10,11 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], examDate: "", routeDone: []};
+let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: []};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 if (!Array.isArray(progress.days)) progress.days = [];
+const savedQuestions = new Set(Array.isArray(progress.savedQuestions) ? progress.savedQuestions : []);
 const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
 };
@@ -136,6 +137,31 @@ function updateStreakBadge() {
   badge.setAttribute("aria-label", "Огоньки и прогресс. Дней подряд: " + count);
 }
 
+function bookmarkLabel(question) {
+  return savedQuestions.has(question.id) ? "Убрать из сохранённых" : "Сохранить вопрос";
+}
+
+function bookmarkButton(question) {
+  const saved = savedQuestions.has(question.id);
+  return '<button class="secondary bookmark" data-action="bookmark" data-value="' + escape(question.id) +
+    '" aria-pressed="' + saved + '">' + bookmarkLabel(question) + '</button>';
+}
+
+function renderSavedQuestions() {
+  const items = [...savedQuestions].map(id => byId.get(id)).filter(Boolean).reverse();
+  const rows = items.map(q => '<article class="saved-row"><button class="saved-question" data-action="saved-one" data-value="' +
+    escape(q.id) + '"><span>Билет ' + q.ticket + ' · Вопрос ' + q.num + '</span><strong>' +
+    escape(q.text) + '</strong></button><button class="secondary saved-remove" data-action="bookmark" data-value="' +
+    escape(q.id) + '" aria-label="Убрать вопрос ' + q.num + ' из билета ' + q.ticket +
+    ' из сохранённых">Убрать</button></article>').join("");
+  app.innerHTML = panel("Сохранённые вопросы",
+    '<div class="actions saved-actions">' +
+    (items.length ? button("Тренировать подборку", "saved-practice", "", "primary") : "") +
+    button("К прогрессу", "navigate", "profile") + '</div>' +
+    (items.length ? '<div class="saved-list">' + rows + '</div>' :
+      '<p class="muted empty-saved">Сохраняй сложные вопросы во время урока или из разбора ответов. Здесь их можно повторить.</p>'));
+}
+
 function renderActivity(answered) {
   const {current, best, doneToday, week} = studyActivity(progress.days);
   const days = week.map(({date, key, done, today}) =>
@@ -153,9 +179,11 @@ function renderActivity(answered) {
     '" aria-hidden="true">🔥</span></div><div class="streak-totals">' +
     stat("Дней подряд", current) + stat("Лучшая серия", best) +
     '</div><ol class="streak-calendar" aria-label="Последние семь дней">' + days +
-    '</ol><p class="streak-rule">Огонёк за день даёт пройденный этап маршрута, завершённая тренировка или сданный экзамен.</p></section>' +
+    '</ol><p class="streak-rule">Огонёк за день даёт пройденный этап маршрута, тренировка от пяти вопросов или сданный экзамен.</p></section>' +
     '<div class="metrics profile-metrics">' + stat("Вопросов решено", answered) +
-    stat("Ошибок к повторению", errors().length) + '</div><div class="actions">' +
+    stat("Ошибок к повторению", errors().length) + '</div><button class="card saved-shortcut" data-page="saved">' +
+    '<strong>Сохранённые вопросы</strong><span aria-label="Всего сохранено">' +
+    [...savedQuestions].filter(id => byId.has(id)).length + '</span></button><div class="actions">' +
     button("На маршрут", "navigate", "home", "primary") +
     button("Повторить ошибки", "mistakes", "", "secondary", !errors().length) +
     (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
@@ -184,6 +212,7 @@ function render() {
       button("Начать экзамен", "exam", "", "primary"));
   }
   if (page === "profile") renderActivity(answered);
+  if (page === "saved") renderSavedQuestions();
   if (page === "pro") {
     const date = progress.examDate;
     const daysLeft = date ? Math.max(0, Math.round((Date.parse(date) - Date.parse(localDay())) / DAY)) : 0;
@@ -277,7 +306,9 @@ function renderQuestion() {
     '" aria-valuenow="' + answeredCount + '">' + indicators + '</div></div>' +
     '<div class="question-body">' +
     (note ? '<p class="lesson-note">' + escape(note) + '</p>' : '') +
-    '<h2>' + escape(q.text) + '</h2>' + questionImage(q) + '<div class="answers">' + options + '</div>' +
+    '<h2>' + escape(q.text) + '</h2>' + questionImage(q) +
+    (blocks ? "" : '<div class="question-bookmark">' + bookmarkButton(q) + '</div>') +
+    '<div class="answers">' + options + '</div>' +
     (show ? '<section id="answer-explanation" class="explanation-panel ' + (right ? 'is-right' : 'is-wrong') +
       '" tabindex="-1" aria-label="Разбор ответа"><div class="explanation-heading"><span aria-hidden="true">' +
       (right ? '✓' : '↳') + '</span><strong>' + (right ? 'Верно' : 'Неверно') +
@@ -319,10 +350,10 @@ function finish() {
     session.passed = session.answers.length === session.items.length &&
       session.answers.every(({q, selected}) => selected === q.correct);
   }
-  const trainingComplete = !session.blocks && !session.routeStep &&
-    session.answers.length === session.items.length;
+  const qualifiesForStreak = session.blocks || session.routeStep ? session.passed :
+    session.items.length >= 5 && session.answers.length === session.items.length;
   const date = localDay();
-  if ((session.passed || trainingComplete) && !progress.days.includes(date)) {
+  if (qualifiesForStreak && !progress.days.includes(date)) {
     progress.days.push(date);
     session.ignited = true;
   }
@@ -366,7 +397,8 @@ function renderResult() {
       (!right && selected !== undefined ? '<div class="review-pick"><span>Ваш ответ</span><p>' +
         escape(q.choices[selected]) + '</p></div>' : '') +
       '<div class="review-pick correct-pick"><span>Правильный ответ</span><p>' +
-      escape(q.choices[q.correct]) + '</p></div>' + answerExplanation(q) + '</div></details>';
+      escape(q.choices[q.correct]) + '</p></div>' + answerExplanation(q) +
+      '<div class="review-bookmark">' + bookmarkButton(q) + '</div></div></details>';
   }).join("");
   app.innerHTML = '<section class="panel narrow result-panel"><div class="result-top"><div><h1>' + escape(title) +
     '</h1><p>' + escape(message) +
@@ -504,6 +536,30 @@ document.addEventListener("click", event => {
       if (page === "result" && session.routeStep && !session.blocks && !session.passed) {
         start(session.items, session.title, null, session.routeStep);
       }
+      break;
+    case "bookmark": {
+      const question = byId.get(value);
+      if (!question) break;
+      if (savedQuestions.has(value)) savedQuestions.delete(value);
+      else savedQuestions.add(value);
+      progress.savedQuestions = [...savedQuestions];
+      save();
+      if (page === "saved") {
+        render();
+        app.querySelector?.(".saved-question, .saved-actions button")?.focus();
+      } else {
+        target.setAttribute("aria-pressed", String(savedQuestions.has(value)));
+        target.textContent = bookmarkLabel(question);
+      }
+      break;
+    }
+    case "saved-one": {
+      const question = byId.get(value);
+      if (question && savedQuestions.has(value)) start([question], "Сохранённый вопрос");
+      break;
+    }
+    case "saved-practice":
+      start(prioritized([...savedQuestions].map(id => byId.get(id)).filter(Boolean)).slice(0, 10), "Сохранённые вопросы");
       break;
     case "mistakes": start(shuffled(errors()).slice(0, 10), "Работа над ошибками"); break;
     case "due": if (billing.active) start(questions.filter(q => progress.answers[q.id]?.due <= Date.now()).sort((a,b) => progress.answers[a.id].due - progress.answers[b.id].due).slice(0, 10), "Повторение по расписанию"); break;

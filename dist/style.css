@@ -314,3 +314,19 @@ footer { width: min(var(--width), calc(100% - 40px)); margin: auto auto 0; paddi
   .route-resume .primary { padding-inline: 9px; min-height: 42px; font-size: .875rem; }
   .category-chip { font-size: .875rem; }
 }
+
+.saved-shortcut { width: 100%; margin-top: 9px; flex-direction: row; align-items: center; justify-content: space-between; }
+.saved-shortcut span { color: var(--cyan); border-radius: 7px; background: #1c454c; padding: 3px 7px; }
+.saved-actions { margin-bottom: 13px; }
+.saved-list { display: grid; gap: 8px; }
+.saved-row { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid #3a556c; border-radius: 10px; background: #15283a; }
+.saved-question { display: grid; flex: 1 1 0; gap: 5px; min-width: 0; border: 0; border-radius: 7px; color: var(--white); text-align: left; background: transparent; padding: 7px; }
+.saved-question:hover { background: #203e52; }
+.saved-question span { color: var(--cyan); font-size: .875rem; }
+.saved-question strong { font-size: 1rem; overflow-wrap: anywhere; }
+.saved-remove { min-height: 42px; font-size: .875rem; padding-inline: 7px; }
+.empty-saved { margin: 18px 0 0; }
+.question-bookmark { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.review-bookmark { display: flex; justify-content: flex-end; margin-top: 8px; }
+.bookmark { min-height: 38px; font-size: .875rem; padding-inline: 8px; }
+.bookmark[aria-pressed=true] { background: #163d45; color: #9af4ea; border-color: #44aaa5; }
