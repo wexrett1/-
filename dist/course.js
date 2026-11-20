@@ -91,6 +91,21 @@ function withReviews(id, title, lessons) {
   return {id, title, steps};
 }
 
+export function restoreCourseCompletions(chapters, saved, answers) {
+  const completed = new Set();
+  for (const {steps} of chapters) {
+    for (const step of steps) {
+      if (!saved.has(step.id)) return completed;
+      // Older builds counted a finished attempt even when it included wrong answers.
+      if (step.items && !step.items.every(question => answers[question.id]?.wrong === false)) {
+        return completed;
+      }
+      completed.add(step.id);
+    }
+  }
+  return completed;
+}
+
 export function currentCourseStep(chapters, completed) {
   for (const chapter of chapters) {
     const step = chapter.steps.find(item => !completed.has(item.id));

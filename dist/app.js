@@ -1,6 +1,6 @@
 import {config} from "./config.js";
 import {drawRouteConnectors, routeOffsets} from "./route-art.js";
-import {buildCourse, currentCourseStep, reviewCourseQuestions} from "./course.js";
+import {buildCourse, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak} from "./study.js";
 
@@ -10,9 +10,9 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], lessons: 0, examDate: "", routeDone: []};
+let progress = {answers: {}, days: [], examDate: "", routeDone: []};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
-const completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
+let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
 };
@@ -274,11 +274,11 @@ function advance() {
 }
 function finish() {
   if (page !== "study") return;
-  if (!session.blocks && previousPage !== "tickets" && previousPage !== "profile") {
-    progress.lessons++;
-    save();
+  if (!session.blocks) {
+    session.passed = session.answers.length === session.items.length &&
+      session.answers.every(({q, selected}) => selected === q.correct);
   }
-  if (session.routeStep && (!session.blocks || session.passed)) {
+  if (session.routeStep && session.passed) {
     completedRoute.add(session.routeStep.id);
     progress.routeDone = [...completedRoute];
     save();
@@ -292,7 +292,20 @@ function renderResult() {
   const correct = session.answers.filter(({q, selected}) => selected === q.correct).length;
   const errorsCount = session.answers.length - correct;
   const unanswered = session.items.length - session.answers.length;
-  const title = session.blocks ? (session.passed ? "Экзамен сдан" : "Экзамен не сдан") : "Занятие завершено";
+  let title = "Занятие завершено";
+  if (session.blocks) title = session.passed ? "Экзамен сдан" : "Экзамен не сдан";
+  const routeTraining = Boolean(session.routeStep && !session.blocks);
+  const retry = routeTraining && !session.passed;
+  if (routeTraining) {
+    title = session.passed ?
+      (session.routeStep.kind === "review" ? "Повторение пройдено" : "Урок пройден") :
+      "Есть ошибки";
+  }
+  const message = retry && !completedRoute.has(session.routeStep.id) ?
+    "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
+    session.timeout ? "Время вышло" : session.title;
+  const leaveLabel = session.routeStep ? "К маршруту" : "Продолжить обучение";
+  const leaveAction = session.routeStep ? "course-current" : "navigate";
   const rows = session.items.map((q, index) => {
     const selected = session.answers[index]?.selected;
     const right = selected === q.correct;
@@ -307,12 +320,13 @@ function renderResult() {
       escape(q.choices[q.correct]) + '</p></div>' + answerExplanation(q) + '</div></details>';
   }).join("");
   app.innerHTML = '<section class="panel narrow result-panel"><div class="result-top"><div><h1>' + escape(title) +
-    '</h1><p>' + (session.timeout ? "Время вышло" : escape(session.title)) +
+    '</h1><p>' + escape(message) +
     '</p></div><div class="score"><strong>' + correct + ' / ' + session.items.length +
     '</strong><span>Верных ответов</span></div></div>' +
     '<div class="result-body"><div class="actions result-actions">' +
-    button(session.routeStep ? "К маршруту" : "Продолжить обучение", session.routeStep ? "course-current" : "navigate", previousPage, "primary") +
-    (errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
+    (retry ? button("Повторить этап", "retry-stage", "", "primary") : "") +
+    button(leaveLabel, leaveAction, previousPage, retry ? "secondary" : "primary") +
+    (!retry && errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
     '<div class="review-header"><h2>Разбор ответов</h2>' +
     (errorsCount + unanswered > 0 ? '<div class="review-filters" role="group" aria-label="Показать ответы">' +
       '<button data-action="review-filter" data-value="all" aria-pressed="true">Все</button>' +
@@ -432,6 +446,11 @@ document.addEventListener("click", event => {
       }
       break;
     }
+    case "retry-stage":
+      if (page === "result" && session.routeStep && !session.blocks && !session.passed) {
+        start(session.items, session.title, null, session.routeStep);
+      }
+      break;
     case "mistakes": start(shuffled(errors()).slice(0, 10), "Работа над ошибками"); break;
     case "due": if (billing.active) start(questions.filter(q => progress.answers[q.id]?.due <= Date.now()).sort((a,b) => progress.answers[a.id].due - progress.answers[b.id].due).slice(0, 10), "Повторение по расписанию"); break;
     case "weak": {
@@ -490,6 +509,12 @@ async function init() {
     }
     byId = new Map(questions.map(q => [q.id, q]));
     chapters = buildCourse(questions);
+    if (progress.routePassVersion !== 1) {
+      completedRoute = restoreCourseCompletions(chapters, completedRoute, progress.answers);
+      progress.routeDone = [...completedRoute];
+      progress.routePassVersion = 1;
+      save();
+    }
     topics = [...new Set(questions.flatMap(q => q.topics))].sort((a, b) => a.localeCompare(b, "ru"));
     if (!config.siteOnly) {
       void api("status").then(result => { billing = result; if (page !== "study") render(); }).catch(() => {});
