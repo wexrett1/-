@@ -5,6 +5,7 @@ import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak} from "./study.js";
 
 const app = document.querySelector("#app");
+const offlineData = globalThis.PDD_OFFLINE_DATA;
 const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
@@ -189,8 +190,10 @@ function record(q, selected) {
   save();
 }
 function questionImage(question, lazy = false) {
-  return question.image ? '<img class="question-image" src="./data/images/' + encodeURIComponent(question.image) +
-    '" alt="Дорожная ситуация к вопросу"' + (lazy ? ' loading="lazy" decoding="async"' : '') + '>' : "";
+  if (!question.image) return "";
+  const source = offlineData ? offlineData.images[question.image] : "./data/images/" + encodeURIComponent(question.image);
+  return '<img class="question-image" src="' + escape(source) + '" alt="Дорожная ситуация к вопросу"' +
+    (lazy ? ' loading="lazy" decoding="async"' : '') + '>';
 }
 
 function answerExplanation(question) {
@@ -467,9 +470,13 @@ document.addEventListener("submit", event => {
 });
 async function init() {
   try {
-    const response = await fetch("./data/tickets.json");
-    if (!response.ok) throw new Error("Tickets");
-    questions = await response.json();
+    if (offlineData) {
+      questions = offlineData.questions;
+    } else {
+      const response = await fetch("./data/tickets.json");
+      if (!response.ok) throw new Error("Tickets");
+      questions = await response.json();
+    }
     byId = new Map(questions.map(q => [q.id, q]));
     chapters = buildCourse(questions);
     topics = [...new Set(questions.flatMap(q => q.topics))].sort((a, b) => a.localeCompare(b, "ru"));
