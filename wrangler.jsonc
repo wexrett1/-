@@ -8,7 +8,7 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*", "/config.js"]
   },
-  "vars": {"RSY_BLOCK_ID": "", "SUPPORT_CONTACT": ""},
+  "vars": {"SUPPORT_CONTACT": ""},
   "d1_databases": [
     {
       "binding": "DB",

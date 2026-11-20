@@ -124,14 +124,14 @@ export default {
       const {initData} = await request.json();
       const user = enabled ? await telegramUser(initData, env.BOT_TOKEN) : null;
       const active = user ? (await subscription(env.DB, user)) > now() : false;
-      if (pathname === "/api/status") return json({active, enabled, price:PRICE, adBlock:env.RSY_BLOCK_ID || ""});
+      if (pathname === "/api/status") return json({active, enabled, price:PRICE});
       if (!enabled || !user) return json({error:"Telegram authorization required"}, 401);
       if (active) return json({error:"Already active"}, 409);
       const id = "pro_" + crypto.randomUUID().replaceAll("-", "");
       await env.DB.prepare("INSERT INTO orders (id, user_id, amount, created_at) VALUES (?, ?, ?, ?)")
         .bind(id, user, PRICE, now()).run();
       const url = await bot(env, "createInvoiceLink", {
-        title:"Маршрут Pro", description:"Персональный план, повторение ошибок и занятия без рекламы на 30 дней.",
+        title:"Маршрут Pro", description:"Персональный план и повторение ошибок на 30 дней.",
         payload:id, currency:"XTR", prices:[{label:"Pro на 30 дней", amount:PRICE}], subscription_period:MONTH
       });
       return json({url});

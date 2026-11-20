@@ -21,8 +21,7 @@ const save = () => {
 let questions = [], topics = [], byId = new Map();
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
-let billing = {active: false, enabled: false, price: 199, adBlock: config.adBlock ?? ""};
-let adCounter = 0, adLoader;
+let billing = {active: false, enabled: false, price: 199};
 
 function escape(value) {
   return String(value).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -220,7 +219,7 @@ function render() {
     const priority = topics.map(name => ({ name, ...topicStats(name) }))
       .sort((a,b) => a.mastered / a.items.length - b.mastered / b.items.length).slice(0,3);
     app.innerHTML = panel("Маршрут Pro",
-      '<p>План до экзамена, тренировка слабых тем, повторение по расписанию и занятия без рекламы.</p>' +
+      '<p>План до экзамена, тренировка слабых тем и повторение по расписанию.</p>' +
       (billing.active ?
         '<p class="label">Pro активен</p><form class="form" id="exam-date"><label for="date">Дата экзамена</label><input type="date" id="date" min="' +
         localDay() + '" required value="' + escape(date) + '"><button class="secondary">Сохранить</button></form>' +
@@ -415,50 +414,6 @@ function renderResult() {
       '<button data-action="review-filter" data-value="all" aria-pressed="true">Все</button>' +
       '<button data-action="review-filter" data-value="missed" aria-pressed="false">' + (unanswered ? 'Ошибки и пропуски' : 'Ошибки') + '</button></div>' : '') +
     '</div><div class="review">' + rows + '</div></div></section>';
-  showAd();
-}
-function showAd() {
-  if (!billing.adBlock || billing.active || session.adShown || !/^R-A-\d+-\d+$/.test(billing.adBlock)) return;
-  if (location.protocol !== "https:") return;
-  const day = localDay();
-  try { if (localStorage.getItem("pdd-ad-day") === day) return; } catch {}
-  const slot = document.createElement("div");
-  slot.className = "ad-slot";
-  slot.id = "pdd-ad-" + (++adCounter);
-  app.querySelector(".result-actions").after(slot);
-  if (!adLoader) {
-    adLoader = new Promise((resolve, reject) => {
-      window.yaContextCb ||= [];
-      const script = document.createElement("script");
-      script.src = "https://yandex.ru/ads/system/context.js";
-      script.async = true;
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.append(script);
-    });
-  }
-  const current = session;
-  adLoader.then(() => {
-    if (!slot.isConnected || billing.active) return;
-    window.yaContextCb.push(() => {
-      if (!slot.isConnected || billing.active) return;
-      const ads = window.Ya?.Context?.AdvManager;
-      if (!ads) { slot.remove(); return; }
-      try {
-        ads.render({
-          blockId: billing.adBlock,
-          renderTo: slot.id,
-          onError: event => { if (event.type === "error") slot.remove(); },
-          onRender: () => {
-            current.adShown = true;
-            try { localStorage.setItem("pdd-ad-day", day); } catch {}
-          }
-        }, () => slot.remove());
-      } catch {
-        slot.remove();
-      }
-    });
-  }).catch(() => { slot.remove(); adLoader = null; });
 }
 function prioritized(items) {
   return shuffled(items).sort((a, b) => {
