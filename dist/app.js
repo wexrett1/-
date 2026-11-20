@@ -1,5 +1,6 @@
 import {config} from "./config.js";
-import {drawRoute} from "./route-art.js";
+import {drawRouteConnectors, routeOffsets} from "./route-art.js";
+import {buildCourse, currentCourseStep, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak} from "./study.js";
 
@@ -8,12 +9,14 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], lessons: 0, examDate: ""};
+let progress = {answers: {}, days: [], lessons: 0, examDate: "", routeDone: []};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
+const completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
 };
 let questions = [], topics = [], byId = new Map();
+let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
 let billing = {active: false, enabled: false, price: 199, adBlock: ""};
 let adCounter = 0, adLoader;
@@ -44,30 +47,64 @@ function topicStats(name) {
   const mastered = items.filter(q => progress.answers[q.id] && !progress.answers[q.id].wrong).length;
   return {items, mastered};
 }
-function nextTopicName() {
-  return topics.find(name => {
-    const {items, mastered} = topicStats(name);
-    return mastered < items.length;
-  });
-}
-function topicCard(name, index, nextTopic) {
-  const {items, mastered} = topicStats(name);
-  const current = name === nextTopic;
-  return '<button class="card topic-card' + (current ? ' topic-current' : '') +
-    '" data-action="topic" data-value="' + index + '"><span class="topic-marker" aria-hidden="true">' +
-    (mastered === items.length ? '✓' : current ? '●' : '◇') + '</span><span class="topic-caption"><strong>' +
-    escape(name) + '</strong>' + (current ? '<span>Следующий урок</span>' : '') +
-    '</span><span class="topic-meter"><span>' + mastered + ' из ' + items.length +
-    '</span><span class="mini-track"><i style="width:' + Math.round(mastered / items.length * 100) +
-    '%"></i></span></span></button>';
+function renderCourse() {
+  const current = currentCourseStep(chapters, completedRoute);
+  const chapter = chapters.find(item => item.id === chapterView) ?? current.chapter;
+  const lessons = chapter.steps.filter(step => step.kind === "lesson");
+  const completedLessons = lessons.filter(step => completedRoute.has(step.id)).length;
+  const index = chapters.indexOf(chapter);
+  const route = chapter.steps.map((step, i) => {
+    const completed = completedRoute.has(step.id);
+    const active = step === current.step;
+    const locked = !completed && !active;
+    const offset = routeOffsets[i % routeOffsets.length];
+    const nextOffset = routeOffsets[(i + 1) % routeOffsets.length];
+    const glyph = active ? "▶" : step.kind === "review" ? "↻" : step.kind === "exam" ? "⚑" : completed ? "✓" : "";
+    const icon = glyph ? '<span aria-hidden="true">' + glyph + '</span>' : '<span class="course-lock" aria-hidden="true"></span>';
+    const info = completed ? "Пройдено" : step.kind === "review" ? "Вопросы из раздела" :
+      step.kind === "exam" ? "20 вопросов · 20 минут" : "Урок " + (i + 1) + " · " + step.items.length + " вопр.";
+    const node = '<span class="course-track"><span class="course-disc">' + icon + (completed && step.kind !== "lesson" ? '<span class="course-check" aria-hidden="true">✓</span>' : '') +
+      '</span></span><span class="course-caption"><strong>' + escape(step.title) +
+      '</strong><span class="course-detail">' + info + '</span>' +
+      (active ? '<span class="course-cta">' +
+        (step.kind === "exam" ? "Начать экзамен" : step.kind === "review" ? "Начать повторение" : "Начать урок") +
+        '</span>' : '') + '</span>';
+    return '<li class="course-entry" style="--node-left:' + offset + '%">' +
+      (i < chapter.steps.length - 1 ? '<canvas class="course-connector" width="300" height="250" aria-hidden="true" data-from="' +
+        offset + '" data-to="' + nextOffset + '" data-active="' + completed + '"></canvas>' : '') +
+      '<button class="course-node ' + (active ? "is-current" : completed ? "is-complete" : "is-locked") +
+      '" data-action="course-step" data-value="' + escape(step.id) + '"' +
+      (active ? ' aria-current="step"' : '') + (locked ? ' disabled aria-label="' + escape(step.title + " — этап закрыт") + '"' : '') +
+      '>' + node + '</button></li>';
+  }).join("");
+  const switchToCurrent = current.step ? button("К текущему этапу", "course-current", "", "secondary") : "";
+  const select = '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
+    chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
+      '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
+  app.innerHTML = '<div class="course-layout"><section class="course-map"><div class="course-head">' +
+    '<p class="course-kicker">Раздел ' + (index + 1) + ' из ' + chapters.length + '</p><h1>' + escape(chapter.title) + '</h1>' +
+    '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
+    '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + lessons.length +
+    ' уроков</span></div><div class="course-tools">' + select + switchToCurrent + '</div>' +
+    (!current.step ? '<p class="course-finished" role="status">Маршрут пройден</p>' : '') +
+    '</div><ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
+    '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Твой прогресс</h2>' +
+    '<div class="metrics">' + stat("Вопросов", Object.keys(progress.answers).filter(id => byId.has(id)).length + " / " + questions.length) +
+    stat("Дней подряд", streak(progress.days)) + '</div></section>' +
+    '<section class="dashboard-card"><h2>Практика</h2>' +
+    '<button class="card practice-link" data-page="tickets"><strong>Все билеты</strong><small>40 билетов · 800 вопросов</small></button>' +
+    '<button class="card practice-link" data-page="exam"><strong>Пробный экзамен</strong><small>20 вопросов · 20 минут</small></button>' +
+    '</section></aside></div>';
+  drawRouteConnectors(app);
 }
 function navigate(destination) {
   if (!questions.length) return;
   if (page === "study" && destination !== "study" && !confirm("Завершить текущее занятие?")) return;
   clearInterval(ticker);
   page = destination;
+  if (page === "home") chapterView = null;
   for (const link of document.querySelectorAll("nav [data-page]")) {
-    if (link.dataset.page === page) link.setAttribute("aria-current", "page");
+    if (link.dataset.page === (page === "study" ? previousPage : page)) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
   render();
@@ -76,31 +113,7 @@ function navigate(destination) {
 
 function render() {
   const answered = Object.keys(progress.answers).filter(id => byId.has(id)).length;
-  if (page === "home") {
-    const nextTopic = nextTopicName();
-    const completedTopics = topics.filter(name => {
-      const {items, mastered} = topicStats(name);
-      return mastered === items.length;
-    }).length;
-    app.innerHTML = '<section class="hero"><div class="hero-copy"><p class="eyebrow"><span></span> Категории A и B</p>' +
-      '<h1>Твой маршрут<br><em>к правам</em></h1><p>Пять вопросов за урок. Дальше — пробный экзамен.</p>' +
-      button("Начать урок", "daily", "", "primary") +
-      '</div><div class="hero-art" aria-hidden="true"><canvas width="1200" height="740"></canvas></div>' +
-      '<div class="route-progress"><div><span>Темы освоены</span><strong>' + completedTopics + ' из ' + topics.length +
-      '</strong></div><progress value="' + completedTopics + '" max="' + topics.length + '" aria-label="Прогресс по темам"></progress></div></section>' +
-      '<section class="home-stats metrics" aria-label="Твой прогресс">' +
-      stat("Вопросов решено", answered + " / 800") + stat("Уроков пройдено", progress.lessons) +
-      stat("Дней подряд", streak(progress.days)) + '</section>' +
-      '<div class="dashboard"><section class="route"><div class="section-title"><h2>Уроки по темам</h2>' +
-      '<span class="section-count">' + topics.length + ' тем</span></div><div class="topic-list">' +
-      topics.map((name, index) => topicCard(name, index, nextTopic)).join("") + '</div></section>' +
-      '<aside class="shortcuts" aria-label="Режимы тренировки"><h2>Практика</h2>' +
-      '<button class="shortcut shortcut-tickets" data-page="tickets"><span class="shortcut-icon" aria-hidden="true">▤</span>' +
-      '<strong>Все билеты</strong><span>40 билетов · 800 вопросов</span></button>' +
-      '<button class="shortcut shortcut-exam" data-page="exam"><span class="shortcut-icon" aria-hidden="true">◷</span>' +
-      '<strong>Пробный экзамен</strong><span>20 вопросов · 20 минут</span></button></aside></div>';
-    drawRoute(app.querySelector?.(".hero-art canvas"));
-  }
+  if (page === "home") renderCourse();
   if (page === "tickets") {
     app.innerHTML = '<div class="page-heading"><p class="eyebrow"><span></span> Категории A и B</p><h1>Билеты ПДД</h1>' +
       '<p class="muted">40 билетов · 800 вопросов</p></div>' +
@@ -150,13 +163,13 @@ function render() {
   if (page === "result") renderResult();
 }
 
-function start(items, title, blocks = null) {
+function start(items, title, blocks = null, routeStep = null) {
   if (!items.length) {
     app.insertAdjacentHTML("afterbegin", '<p class="panel" role="status">На сегодня всё повторено.</p>');
     return;
   }
-  previousPage = page;
-  session = {items, title, blocks, answers: [], picked: -1, deadline: Date.now() + 20 * 60000, extra: false, passed: false};
+  if (page !== "result") previousPage = page;
+  session = {items, title, blocks, routeStep, answers: [], picked: -1, deadline: Date.now() + 20 * 60000, extra: false, passed: false};
   navigate("study");
   if (blocks) ticker = setInterval(updateTimer, 250);
 }
@@ -190,7 +203,7 @@ function renderQuestion() {
   const n = answers.length;
   const q = items[n];
   const show = picked >= 0 && !blocks;
-  const note = n === 0 && !blocks ? lessonNote(session.title) : "";
+  const note = n === 0 && !blocks ? lessonNote(session.routeStep?.topic ?? session.title) : "";
   const right = picked === q.correct;
   const options = q.choices.map((choice, i) => {
     const correctOption = show && i === q.correct;
@@ -203,13 +216,17 @@ function renderQuestion() {
       (correctOption ? "Правильный ответ" : "Ваш ответ") + '</span>' : '') + '</span></button>';
   }).join("");
   const mode = blocks ? (extra ? "Дополнительный блок" : "Экзамен") : session.title;
+  const answeredCount = n + (show ? 1 : 0);
+  const indicators = !blocks && items.length <= 5 ?
+    Array.from({length: items.length}, (_, i) => '<i class="' + (i < answeredCount ? 'filled' : '') + '"></i>').join("") :
+    '<i style="width:' + (100 * answeredCount / items.length) + '%"></i>';
   app.innerHTML = '<section class="panel narrow question-panel"><div class="question-top">' +
     '<div class="question-header"><strong>' + escape(mode) + '</strong><span class="question-counter">Вопрос ' +
     (n + 1) + ' из ' + items.length +
     (blocks ? ' <strong id="clock" class="time-chip" aria-label="Осталось времени"></strong>' : '') +
-    '</span></div><div class="bar" role="progressbar" aria-label="Прогресс занятия" aria-valuemin="0" aria-valuemax="' +
-    items.length + '" aria-valuenow="' + (n + (show ? 1 : 0)) + '"><i style="width:' +
-    (100 * (n + (show ? 1 : 0)) / items.length) + '%"></i></div></div>' +
+    '</span></div><div class="bar' + (!blocks && items.length <= 5 ? ' is-segmented' : '') +
+    '" role="progressbar" aria-label="Прогресс занятия" aria-valuemin="0" aria-valuemax="' + items.length +
+    '" aria-valuenow="' + answeredCount + '">' + indicators + '</div></div>' +
     '<div class="question-body">' +
     (note ? '<p class="lesson-note">' + escape(note) + '</p>' : '') +
     '<h2>' + escape(q.text) + '</h2>' + questionImage(q) + '<div class="answers">' + options + '</div>' +
@@ -254,6 +271,11 @@ function finish() {
     progress.lessons++;
     save();
   }
+  if (session.routeStep && (!session.blocks || session.passed)) {
+    completedRoute.add(session.routeStep.id);
+    progress.routeDone = [...completedRoute];
+    save();
+  }
   page = "result";
   clearInterval(ticker);
   renderResult();
@@ -282,7 +304,7 @@ function renderResult() {
     '</p></div><div class="score"><strong>' + correct + ' / ' + session.items.length +
     '</strong><span>Верных ответов</span></div></div>' +
     '<div class="result-body"><div class="actions result-actions">' +
-    button("Продолжить обучение", "navigate", previousPage, "primary") +
+    button(session.routeStep ? "К маршруту" : "Продолжить обучение", session.routeStep ? "course-current" : "navigate", previousPage, "primary") +
     (errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
     '<div class="review-header"><h2>Разбор ответов</h2>' +
     (errorsCount + unanswered > 0 ? '<div class="review-filters" role="group" aria-label="Показать ответы">' +
@@ -375,10 +397,25 @@ document.addEventListener("click", event => {
     case "navigate": navigate(value); break;
     case "ticket": start(questions.filter(q => q.ticket === Number(value)), "Билет " + value); break;
     case "topic": start(prioritized(topicStats(topics[Number(value)]).items).slice(0, 5), topics[Number(value)]); break;
-    case "daily": {
-      const nextTopic = nextTopicName();
-      const items = nextTopic ? topicStats(nextTopic).items : questions;
-      start(prioritized(items).slice(0, 5), nextTopic || "Урок дня");
+    case "course-current":
+      if (page !== "home") navigate("home");
+      else {
+        chapterView = null;
+        render();
+      }
+      app.querySelector?.('[aria-current="step"]')?.scrollIntoView({block: "center"});
+      break;
+    case "course-step": {
+      const {step: current} = currentCourseStep(chapters, completedRoute);
+      const step = chapters.flatMap(chapter => chapter.steps).find(item => item.id === value);
+      if (!step || (step !== current && !completedRoute.has(value))) break;
+      if (step.kind === "exam") {
+        const blocks = examBlocks(questions);
+        start(blocks.flatMap(entries => entries[0]), step.title, blocks, step);
+      } else {
+        const items = step.kind === "review" ? reviewCourseQuestions(step.items, progress.answers) : step.items;
+        start(items, step.title, null, step);
+      }
       break;
     }
     case "mistakes": start(shuffled(errors()).slice(0, 10), "Работа над ошибками"); break;
@@ -415,6 +452,12 @@ document.addEventListener("click", event => {
     case "buy": if (page === "pro") void buy(target); break;
   }
 });
+document.addEventListener("change", event => {
+  if (page !== "home" || event.target.id !== "chapter-select") return;
+  chapterView = event.target.value;
+  render();
+  document.querySelector("#chapter-select")?.focus();
+});
 document.addEventListener("submit", event => {
   if (event.target.id !== "exam-date" || !billing.active) return;
   event.preventDefault();
@@ -428,6 +471,7 @@ async function init() {
     if (!response.ok) throw new Error("Tickets");
     questions = await response.json();
     byId = new Map(questions.map(q => [q.id, q]));
+    chapters = buildCourse(questions);
     topics = [...new Set(questions.flatMap(q => q.topics))].sort((a, b) => a.localeCompare(b, "ru"));
     if (!config.siteOnly) {
       void api("status").then(result => { billing = result; if (page !== "study") render(); }).catch(() => {});
