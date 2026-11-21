@@ -24,8 +24,10 @@ button, select { cursor: pointer; }
 button:disabled { cursor: default; }
 :where(button, a, select, input, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 :where(button, select) { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
-.screen-enter { animation: screen-enter 180ms cubic-bezier(.2,.7,.3,1) both; }
-@keyframes screen-enter { from { opacity: .62; transform: translateY(4px); } }
+.screen-enter { animation: screen-enter 230ms cubic-bezier(.21,.67,.32,1) both; }
+@keyframes screen-enter { from { opacity: .72; transform: translateY(5px); } }
+@keyframes glow-in { from { opacity: .2; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes flame-in { from { opacity: .55; transform: translateY(3px) rotate(-27deg) scale(.77); } }
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   :where(button, select) { transition: none; }
@@ -106,6 +108,13 @@ footer a { color: inherit; text-underline-offset: 3px; }
   background: linear-gradient(118deg, var(--chapter-shade), var(--chapter-bg));
   border: 1px solid var(--chapter-line); border-radius: 17px;
 }
+.course-head::before {
+  content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 90% 100%, var(--chapter-line), transparent 61%);
+  opacity: .72; transform-origin: 90% 100%;
+}
+.screen-enter .course-head::before { animation: hero-glow 480ms ease-out; }
+@keyframes hero-glow { from { opacity: .2; transform: scale(.93); } }
 .course-head::after {
   content: ""; position: absolute; z-index: -1; inset: auto -7% -120px auto; width: 260px; height: 270px;
   border: 1px solid var(--chapter-line); border-radius: 45px; transform: rotate(-33deg);
@@ -172,7 +181,7 @@ footer a { color: inherit; text-underline-offset: 3px; }
 }
 .is-current .course-disc {
   color: #171a22; border-color: var(--chapter-ink); background: var(--chapter-ink);
-  box-shadow: 0 0 0 3px var(--base), 0 0 0 4px var(--chapter-line);
+  box-shadow: 0 0 0 3px var(--base), 0 0 0 4px var(--chapter-line), 0 0 21px var(--chapter-line);
 }
 .course-play { width: 0; height: 0; border: solid transparent; border-width: 7px 0 7px 10px; border-left-color: currentColor; margin-left: 2px; }
 .is-complete .course-disc { color: var(--chapter-ink); border-color: var(--chapter-line); background: var(--chapter-shade); font-size: 1.35rem; }
@@ -291,6 +300,11 @@ footer a { color: inherit; text-underline-offset: 3px; }
     repeating-conic-gradient(from -1deg, #9296c6 0deg 2deg, transparent 2deg 30deg), #292d46;
 }
 .exam-dial::before { content: ""; position: absolute; inset: 6%; border: 1px solid #4b533f; border-radius: 50%; z-index: -1; }
+.exam-dial::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 25px #9d9dff40, inset 0 0 17px #9d9dff26;
+}
+.screen-enter .exam-dial::after { animation: glow-in 460ms ease-out both; }
 .exam-start-body { padding: clamp(16px, 4.6vw, 32px); }
 .exam-start-body h2 { margin-bottom: 12px; }
 .exam-rules { margin: 0; }
@@ -436,6 +450,10 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .streak-earned {
   display: flex; align-items: center; gap: 8px; background: #2d2e21; color: var(--accent);
   border-left: 2px solid var(--accent); padding: 8px 11px; font-weight: 650; --flame-cut: #2d2e21;
+}
+.streak-earned .flame { filter: drop-shadow(0 0 5px #f4b58f80); animation: flame-in 360ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter .course-head::before, .screen-enter .exam-dial::after, .streak-earned .flame { animation: none; }
 }
 .saved-shortcut { width: 100%; margin-top: 9px; flex-direction: row; align-items: center; justify-content: space-between; }
 .saved-shortcut span { color: var(--green); font-variant-numeric: tabular-nums; }
