@@ -3,6 +3,7 @@ import argparse
 import base64
 import json
 import re
+from html import escape
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parents[1] / "dist"
@@ -27,11 +28,16 @@ def build(output):
     for module in MODULES:
         source = re.sub(r"^import .*;\n", "", read(module), flags=re.M)
         scripts.append(re.sub(r"^export ", "", source, flags=re.M))
-    css = read("style.css")
+    css = re.sub(
+        r'url\("\./fonts/([a-z-]+\.woff2)"\)',
+        lambda match: 'url("' + data_url(ASSETS / "fonts" / match[1], "font/woff2") + '")',
+        read("style.css"),
+    )
+    notices = "\n\n".join(escape(path.read_text(encoding="utf-8")) for path in sorted((ASSETS / "fonts").glob("*-OFL.txt")))
     html = re.sub(r"<script[^\n]+</script>\n", "", read("index.html"))
     html = html.replace('<link rel="stylesheet" href="./style.css">', f"<style>\n{css}\n</style>")
     code = "\n".join(scripts)
-    html = html.replace("</body>", f"<script>\n{code}\n</script>\n</body>")
+    html = html.replace("</body>", f'<template id="font-licenses"><pre>{notices}</pre></template>\n<script>\n{code}\n</script>\n</body>')
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(html, encoding="utf-8")
     print(f"{output.name}: {len(questions)} questions, {len(images)} illustrations")
