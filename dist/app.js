@@ -84,9 +84,10 @@ function renderCourse() {
       '>' + node + '</button></li>';
   }).join("");
   const nextStep = current.step;
-  const resume = nextStep ? '<div class="route-resume"><div class="resume-copy"><span>Текущий этап</span><strong>' +
+  const resume = nextStep ? '<div class="route-resume" data-chapter="' + escape(current.chapter.id) +
+    '"><div class="resume-copy"><span>Текущий этап</span><strong>' +
     escape(nextStep.title) + '</strong><small>' +
-    escape(nextStep.kind === "exam" ? "20 вопросов · 20 минут" :
+    escape(chapter !== current.chapter ? current.chapter.title : nextStep.kind === "exam" ? "20 вопросов · 20 минут" :
       nextStep.kind === "review" ? "Вопросы из последних уроков" : "Вопросов: " + nextStep.items.length) +
     '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : nextStep.kind === "review" ? "Повторить" :
       completedRoute.size ? "Продолжить" : "Начать урок", "course-step", nextStep.id, "primary") +
@@ -94,7 +95,8 @@ function renderCourse() {
   const select = '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
     chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
       '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
-  app.innerHTML = '<div class="course-layout"><section class="course-map" aria-labelledby="course-title"><div class="course-head">' +
+  app.innerHTML = '<div class="course-layout"><section class="course-map" data-chapter="' + escape(chapter.id) +
+    '" aria-labelledby="course-title"><div class="course-head">' +
     '<p class="course-kicker">Раздел ' + ordinal(index + 1) + ' / ' + ordinal(chapters.length) +
     '</p><h1 id="course-title">' + escape(chapter.title) + '</h1>' +
     '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
@@ -110,6 +112,10 @@ function renderCourse() {
     '<button class="card practice-link" data-page="exam"><strong>Пробный экзамен</strong><small>20 вопросов · 20 минут</small></button>' +
     '</section></aside></div>';
 }
+function revealScreen() {
+  app.firstElementChild?.classList.add("screen-enter");
+}
+
 function navigate(destination) {
   if (!questions.length) return;
   if (page === "study" && destination !== "study" && !confirm("Завершить текущее занятие?")) return;
@@ -122,6 +128,7 @@ function navigate(destination) {
     else link.removeAttribute("aria-current");
   }
   render();
+  revealScreen();
   window.scrollTo(0, 0);
 }
 
@@ -393,6 +400,7 @@ function finish() {
   page = "result";
   clearInterval(ticker);
   renderResult();
+  revealScreen();
   window.scrollTo(0, 0);
 }
 function renderResult() {
@@ -584,6 +592,7 @@ document.addEventListener("change", event => {
   if (page !== "home" || event.target.id !== "chapter-select") return;
   chapterView = event.target.value;
   render();
+  revealScreen();
   document.querySelector("#chapter-select")?.focus();
 });
 document.addEventListener("submit", event => {
