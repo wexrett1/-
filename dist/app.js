@@ -9,10 +9,16 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: []};
+let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: []};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 if (!Array.isArray(progress.days)) progress.days = [];
+const examHistoryLimit = 10;
+progress.examHistory = Array.isArray(progress.examHistory) ? progress.examHistory.filter(attempt =>
+  Number.isFinite(attempt?.at) && attempt.at > 0 && attempt.at < 8640000000000000 &&
+  Number.isInteger(attempt.correct) && attempt.correct >= 0 && Number.isInteger(attempt.total) &&
+  attempt.total >= 20 && attempt.correct <= attempt.total && typeof attempt.passed === "boolean"
+).slice(0, examHistoryLimit) : [];
 const savedQuestions = new Set(Array.isArray(progress.savedQuestions) ? progress.savedQuestions : []);
 const save = () => {
   try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch {}
@@ -127,7 +133,8 @@ function navigate(destination) {
   page = destination;
   if (page === "home") chapterView = null;
   const activePage = page === "study" ? previousPage : page;
-  const navPage = activePage === "saved" ? "profile" : activePage === "topics" ? "tickets" : activePage;
+  const navPage = activePage === "saved" ? "profile" : activePage === "topics" ? "tickets" :
+    activePage === "exam-history" ? "exam" : activePage;
   for (const link of document.querySelectorAll("nav [data-page]")) {
     if (link.dataset.page === navPage) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -139,6 +146,7 @@ function navigate(destination) {
 
 const shortWeekday = new Intl.DateTimeFormat("ru-RU", {weekday: "short"});
 const longDate = new Intl.DateTimeFormat("ru-RU", {day: "numeric", month: "long", weekday: "long"});
+const attemptDate = new Intl.DateTimeFormat("ru-RU", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
 
 function updateStreakBadge() {
   const badge = document.querySelector("#streak-badge");
@@ -265,12 +273,31 @@ function renderExam() {
     '<p><strong>20 вопросов</strong> за 20 минут. Разбор после экзамена.</p></div>' +
     '<div class="exam-dial" aria-hidden="true"><span>20:00</span></div></header>' +
     '<div class="exam-start-body"><div class="exam-start-actions">' +
-    button("Начать экзамен", "exam", "", "primary") + '<p>Таймер запустится сразу после нажатия.</p></div>' +
+    button("Начать экзамен", "exam", "", "primary") +
+    button("История попыток", "navigate", "exam-history") + '<p>Таймер запустится сразу после нажатия.</p></div>' +
     '<h2>Как засчитывается экзамен</h2><dl class="exam-rules">' +
     '<div><dt>Одна ошибка</dt><dd>Пять дополнительных вопросов и пять минут.</dd></div>' +
     '<div><dt>Две ошибки</dt><dd>Если ошибки в разных блоках, добавятся 10 вопросов и 10 минут.</dd></div>' +
     '<div><dt>Экзамен не сдан</dt><dd>Если вышло время, допущены три ошибки, две в одном блоке или любая ошибка в дополнительных вопросах.</dd></div>' +
     '</dl></div></section>';
+}
+
+function renderExamHistory() {
+  const attempts = progress.examHistory;
+  const passed = attempts.filter(entry => entry.passed).length;
+  const rows = attempts.map(entry => {
+    const date = new Date(entry.at);
+    const status = entry.passed ? "Сдан" : entry.timeout ? "Время вышло" : "Не сдан";
+    return '<li class="exam-attempt"><div><strong class="exam-attempt-status' + (entry.passed ? ' is-passed' : '') + '">' +
+      status + '</strong><time datetime="' + date.toISOString() + '">' + escape(attemptDate.format(date)) +
+      '</time></div><span class="exam-attempt-score" aria-label="' + entry.correct + ' из ' + entry.total + ' верно">' +
+      entry.correct + ' / ' + entry.total + '</span></li>';
+  }).join("");
+  app.innerHTML = panel("История экзаменов", '<div class="actions exam-history-actions">' +
+    button("К экзамену", "navigate", "exam", "primary") + '</div>' +
+    (attempts.length ? '<p class="exam-history-summary">Сдано из последних попыток <strong>' + passed + ' из ' + attempts.length +
+      '</strong></p><ul class="exam-history-list">' + rows + '</ul>' :
+      '<p class="muted">Здесь появятся результаты завершённых экзаменов.</p>'));
 }
 
 function render() {
@@ -280,6 +307,7 @@ function render() {
   if (page === "tickets") renderTickets();
   if (page === "topics") renderTopics();
   if (page === "exam") renderExam();
+  if (page === "exam-history") renderExamHistory();
   if (page === "profile") renderActivity(answered);
   if (page === "saved") renderSavedQuestions();
   if (page === "pro") {
@@ -430,6 +458,13 @@ function finish() {
     completedRoute.add(session.routeStep.id);
     progress.routeDone = [...completedRoute];
   }
+  if (session.blocks) {
+    progress.examHistory.unshift({
+      at: Date.now(), correct: session.answers.filter(({q, selected}) => selected === q.correct).length,
+      total: session.items.length, passed: session.passed, timeout: Boolean(session.timeout)
+    });
+    progress.examHistory.length = Math.min(progress.examHistory.length, examHistoryLimit);
+  }
   save();
   updateStreakBadge();
   page = "result";
@@ -481,6 +516,7 @@ function renderResult() {
     '<div class="actions result-actions">' +
     (retry ? button("Повторить этап", "retry-stage", "", "primary") : "") +
     button(leaveLabel, leaveAction, previousPage, retry ? "secondary" : "primary") +
+    (session.blocks ? button("История попыток", "navigate", "exam-history") : "") +
     (!retry && errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
     '<div class="review-header"><h2>Разбор ответов</h2>' +
     (errorsCount + unanswered > 0 ? '<div class="review-filters" role="group" aria-label="Показать ответы">' +

@@ -303,7 +303,19 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .exam-start-actions {
   display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 21px; gap: 8px 12px;
 }
-.exam-start-actions p { font-size: .875rem; color: var(--muted); margin: 0; }
+.exam-start-actions p { flex-basis: 100%; font-size: .875rem; color: var(--muted); margin: 0; }
+.exam-history-actions { margin-bottom: 18px; }
+.exam-history-summary { color: var(--muted); margin: 0 0 9px; }
+.exam-history-summary strong { color: #ceceff; font-variant-numeric: tabular-nums; }
+.exam-history-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.exam-attempt {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.exam-attempt-status { display: block; color: var(--danger); }
+.exam-attempt-status.is-passed { color: #b9dfb4; }
+.exam-attempt time { color: var(--muted); font-size: .875rem; }
+.exam-attempt-score { color: var(--ink); white-space: nowrap; font-weight: 680; font-variant-numeric: tabular-nums; }
 .stack { display: grid; gap: 8px; }
 .label { display: inline-flex; color: var(--green); border-bottom: 1px solid #5b6c54; padding: 4px 0; font-weight: 650; }
 .form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
