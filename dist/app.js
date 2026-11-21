@@ -215,7 +215,9 @@ function renderCourse() {
     '</section></aside></div>';
 }
 function revealScreen() {
-  app.firstElementChild?.classList.add("screen-enter");
+  const screen = app.firstElementChild;
+  const content = screen?.querySelector(".question-main") ?? screen;
+  content?.classList.add("screen-enter");
 }
 
 function navigate(destination, {chapterId = null} = {}) {
@@ -764,7 +766,7 @@ function renderQuestion() {
       choice === question.correct ? "is-right" : "is-wrong";
     return '<i class="' + state + '"></i>';
   }).join("") : '<i style="width:' + (100 * answeredCount / items.length) + '%"></i>';
-  app.innerHTML = '<section class="panel narrow question-panel"><div class="question-top">' +
+  app.innerHTML = '<section class="panel narrow question-panel"><div class="question-main"><div class="question-top">' +
     '<div class="question-header"><strong>' + escape(mode) + '</strong><span class="question-counter">Вопрос ' +
     (n + 1) + ' из ' + items.length +
     (blocks ? ' <strong id="clock" class="time-chip" aria-label="Осталось времени"></strong>' : '') +
@@ -780,9 +782,10 @@ function renderQuestion() {
       '" tabindex="-1" aria-label="Разбор ответа"><div class="explanation-heading"><span aria-hidden="true">' +
       (right ? '✓' : '↳') + '</span><strong>' + (right ? 'Верно' : 'Неверно') +
       '</strong></div>' + answerExplanation(q) + '</section>' : '') +
-    '<div class="actions question-actions">' +
-    (blocks || show ? button(blocks ? "Подтвердить ответ" : "Продолжить", "next", "", "primary", picked < 0) : '') +
-    '</div></div></section>';
+    '</div></div><div class="actions question-actions" aria-label="Управление занятием">' +
+    button("Выйти", "leave-study", "", "secondary study-exit") +
+    button(blocks ? "Подтвердить ответ" : "Продолжить", "next", "", "primary study-next", picked < 0) +
+    '</div></section>';
   if (blocks) updateTimer();
 }
 function showNextQuestion() {
@@ -1144,6 +1147,9 @@ document.addEventListener("click", event => {
       }
       break;
     case "next": if (page === "study") advance(); break;
+    case "leave-study":
+      if (page === "study") navigate(previousPage || "home");
+      break;
     case "open-illustration": openIllustration(value, target); break;
     case "close-illustration": if (illustrationViewer?.open) illustrationViewer.close(); break;
     case "zoom-illustration":
