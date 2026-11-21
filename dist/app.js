@@ -68,6 +68,8 @@ const courseScene = '<svg class="course-scene" viewBox="0 0 264 160" aria-hidden
   '<path class="scene-edge" d="M265 -5H168Q150 -5 136 9L73 72Q48 97 73 121L119 168"/>' +
   '<path class="scene-center" d="M265 20H175Q161 20 150 31L91 89Q80 100 91 111L147 168"/>' +
   '<path class="scene-edge" d="M265 45H183Q174 45 166 53L112 107 174 169"/></svg>';
+const playIcon = '<svg class="course-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+  '<path d="M9 5.6c-.8-.5-1.8.1-1.8 1v10.8c0 .9 1 1.5 1.8 1l8.8-5.4a1.2 1.2 0 0 0 0-2L9 5.6Z"/></svg>';
 
 function routeConnector(from, to, completed) {
   return '<svg class="course-connector' + (completed ? ' is-travelled' : '') +
@@ -97,7 +99,7 @@ function renderCourse() {
     const title = lesson ? "Урок " + (++lessonNumber) : step.title;
     const info = lesson ? step.title : step.kind === "review" ? "Вопросы из последних уроков" : "20 вопросов · 20 минут";
     const label = lesson ? title + ". " + step.title : title;
-    const symbol = completed ? "✓" : active ? '<i class="course-play"></i>' :
+    const symbol = completed ? "✓" : active ? playIcon :
       lesson ? ordinal(lessonNumber) : step.kind === "review" ? "↻" : "⚑";
     const node = '<span class="course-track" aria-hidden="true"><span class="course-disc">' + symbol +
       '</span></span><span class="course-caption"><strong>' + escape(title) +

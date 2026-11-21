@@ -230,11 +230,13 @@ footer a { color: inherit; text-underline-offset: 3px; }
   font-size: 1.02rem; font-weight: 650; font-variant-numeric: tabular-nums;
 }
 .is-current .course-disc {
-  --disc-top: #ffedc7; --disc-bottom: var(--chapter-ink); --disc-rim: #ffe8af;
+  --disc-top: #fff1d4; --disc-bottom: var(--chapter-ink); --disc-rim: #ffeabd;
   --disc-side: var(--chapter-line); --disc-glow: var(--chapter-halo); --disc-depth: 4px;
-  color: #291b27;
+  color: #362334;
+  background: radial-gradient(ellipse at 36% 12%, #fff9, transparent 66%),
+    linear-gradient(154deg, var(--disc-top), var(--disc-bottom) 88%);
 }
-.course-play { width: 0; height: 0; border: solid transparent; border-width: 7px 0 7px 10px; border-left-color: currentColor; margin-left: 2px; }
+.course-play { display: block; width: 23px; height: 23px; fill: currentColor; }
 .is-complete .course-disc {
   --disc-top: var(--chapter-bg); --disc-bottom: var(--chapter-shade); --disc-rim: var(--chapter-line);
   color: var(--chapter-ink); font-size: 1.35rem;
@@ -554,7 +556,10 @@ footer a { color: inherit; text-underline-offset: 3px; }
   }
   :where(.primary, .secondary, .topic-card, .course-shortcuts button):active:not(:disabled) { transform: scale(.98); }
   .screen-enter .is-current .course-disc { animation: node-arrive 410ms cubic-bezier(.18,.74,.29,1); }
-  .course-disc { transition: transform 130ms ease, box-shadow 130ms ease; }
+  .course-disc {
+    transition: transform 180ms cubic-bezier(.22,.68,.28,1), box-shadow 180ms cubic-bezier(.22,.68,.28,1);
+  }
+  .course-node:not(:disabled):active .course-disc { transition-duration: 120ms; }
   .answer.right, .answer.wrong { animation: answer-reveal 260ms ease-out; }
 }
 @keyframes node-arrive { from { opacity: .45; scale: .88; } to { opacity: 1; scale: 1; } }
