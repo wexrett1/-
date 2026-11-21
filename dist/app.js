@@ -33,6 +33,7 @@ const savedView = {query: "", wrongOnly: false, limit: savedPageSize};
 let topicMistakesOnly = false;
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
+let examReviewEntry = null;
 let billing = {active: false, enabled: false, price: 199};
 
 function escape(value) {
@@ -161,7 +162,7 @@ function navigate(destination, {chapterId = null} = {}) {
   if (page === "home") chapterView = chapterId;
   const activePage = page === "study" ? previousPage : page;
   const navPage = ["saved", "course-overview"].includes(activePage) ? "profile" : activePage === "topics" ? "tickets" :
-    activePage === "exam-history" ? "exam" : activePage;
+    ["exam-history", "exam-review"].includes(activePage) ? "exam" : activePage;
   for (const link of document.querySelectorAll("nav [data-page]")) {
     if (link.dataset.page === navPage) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -409,19 +410,56 @@ function renderExam() {
 function renderExamHistory() {
   const attempts = progress.examHistory;
   const passed = attempts.filter(entry => entry.passed).length;
-  const rows = attempts.map(entry => {
+  const rows = attempts.map((entry, index) => {
     const date = new Date(entry.at);
     const status = entry.passed ? "Сдан" : entry.timeout ? "Время вышло" : "Не сдан";
     return '<li class="exam-attempt"><div><strong class="exam-attempt-status' + (entry.passed ? ' is-passed' : '') + '">' +
       status + '</strong><time datetime="' + date.toISOString() + '">' + escape(attemptDate.format(date)) +
-      '</time></div><span class="exam-attempt-score" aria-label="' + entry.correct + ' из ' + entry.total + ' верно">' +
-      entry.correct + ' / ' + entry.total + '</span></li>';
+      '</time></div><div class="exam-attempt-end"><span class="exam-attempt-score" aria-label="' + entry.correct + ' из ' + entry.total + ' верно">' +
+      entry.correct + ' / ' + entry.total + '</span>' +
+      (Array.isArray(entry.review) ? button("Разбор", "open-exam-review", index, "secondary exam-review-link") :
+        '<small class="exam-summary-only">Только итог</small>') + '</div></li>';
   }).join("");
   app.innerHTML = panel("История экзаменов", '<div class="actions exam-history-actions">' +
     button("К экзамену", "navigate", "exam", "primary") + '</div>' +
     (attempts.length ? '<p class="exam-history-summary">Сдано из последних попыток <strong>' + passed + ' из ' + attempts.length +
       '</strong></p><ul class="exam-history-list">' + rows + '</ul>' :
       '<p class="muted">Здесь появятся результаты завершённых экзаменов.</p>'));
+}
+
+function examQuestionStamp(question) {
+  const value = JSON.stringify([question.text, question.choices, question.correct, question.image]);
+  let stamp = 2166136261;
+  for (let i = 0; i < value.length; i++) stamp = Math.imul(stamp ^ value.charCodeAt(i), 16777619);
+  return stamp >>> 0;
+}
+
+function storedExamQuestions(attempt) {
+  if (!Array.isArray(attempt?.review)) return [];
+  return attempt.review.slice(0, Math.min(30, attempt.total)).flatMap((item, index) => {
+    const q = byId.get(item?.id);
+    if (!q || examQuestionStamp(q) !== item.stamp) return [];
+    const selected = item.selected;
+    if (selected !== null && (!Number.isInteger(selected) || selected < 0 || selected >= q.choices.length)) return [];
+    return [{q, selected: selected ?? undefined, number: index + 1}];
+  });
+}
+
+function renderStoredExam() {
+  if (!examReviewEntry) { renderExamHistory(); return; }
+  const attempt = examReviewEntry;
+  const entries = storedExamQuestions(attempt);
+  const hasMistakes = entries.some(({q, selected}) => selected !== undefined && selected !== q.correct);
+  const status = attempt.passed ? "Экзамен сдан" : attempt.timeout ? "Время вышло" : "Экзамен не сдан";
+  app.innerHTML = '<section class="panel narrow result-panel exam-review"><div class="result-top"><div><h1>Разбор экзамена</h1>' +
+    '<p>' + status + ' · ' + escape(attemptDate.format(attempt.at)) + '</p></div><div class="score' +
+    (attempt.passed ? '' : ' is-failed') + '"><strong>' + attempt.correct + ' / ' + attempt.total +
+    '</strong><span>Верных ответов</span></div></div><div class="result-body">' +
+    '<div class="actions result-actions">' + button("К истории", "navigate", "exam-history") +
+    (hasMistakes ? button("Повторить ошибки попытки", "repeat-exam-errors", "", "primary") : '') + '</div>' +
+    (entries.length < attempt.total ? '<p class="muted exam-review-note">В текущей базе доступно для разбора: ' +
+      entries.length + ' из ' + attempt.total + '.</p>' : '') +
+    (entries.length ? answerReview(entries) : '') + '</div></section>';
 }
 
 function render() {
@@ -432,6 +470,7 @@ function render() {
   if (page === "topics") renderTopics();
   if (page === "exam") renderExam();
   if (page === "exam-history") renderExamHistory();
+  if (page === "exam-review") renderStoredExam();
   if (page === "profile") renderActivity(answered);
   if (page === "course-overview") renderCourseOverview();
   if (page === "saved") renderSavedQuestions();
@@ -602,7 +641,10 @@ function finish() {
   if (session.blocks) {
     progress.examHistory.unshift({
       at: Date.now(), correct: session.answers.filter(({q, selected}) => selected === q.correct).length,
-      total: session.items.length, passed: session.passed, timeout: Boolean(session.timeout)
+      total: session.items.length, passed: session.passed, timeout: Boolean(session.timeout),
+      review: session.items.map((q, index) => ({
+        id: q.id, stamp: examQuestionStamp(q), selected: session.answers[index]?.selected ?? null
+      }))
     });
     progress.examHistory.length = Math.min(progress.examHistory.length, examHistoryLimit);
   }
@@ -614,10 +656,33 @@ function finish() {
   revealScreen();
   window.scrollTo(0, 0);
 }
+
+function answerReview(entries) {
+  const unanswered = entries.some(({selected}) => selected === undefined);
+  const hasMissed = unanswered || entries.some(({q, selected}) => selected !== q.correct);
+  const rows = entries.map(({q, selected, number}) => {
+    const right = selected === q.correct;
+    return '<details class="review-item" data-correct="' + right +
+      '"><summary><span class="review-number">' + number + '</span><span class="review-question">' +
+      escape(q.text) + '</span><span class="review-status ' + (right ? 'is-right' : 'is-wrong') + '">' +
+      (right ? 'Верно' : selected === undefined ? 'Пропуск' : 'Ошибка') +
+      '</span></summary><div class="review-body">' + questionImage(q, true) +
+      (!right && selected !== undefined ? '<div class="review-pick"><span>Ваш ответ</span><p>' +
+        escape(q.choices[selected]) + '</p></div>' : '') +
+      '<div class="review-pick correct-pick"><span>Правильный ответ</span><p>' +
+      escape(q.choices[q.correct]) + '</p></div>' + answerExplanation(q) +
+      '<div class="review-bookmark">' + bookmarkButton(q) + '</div></div></details>';
+  }).join("");
+  return '<div class="review-header"><h2>Разбор ответов</h2>' +
+    (hasMissed ? '<div class="review-filters" role="group" aria-label="Показать ответы">' +
+      '<button data-action="review-filter" data-value="all" aria-pressed="true">Все</button>' +
+      '<button data-action="review-filter" data-value="missed" aria-pressed="false">' + (unanswered ? 'Ошибки и пропуски' : 'Ошибки') + '</button></div>' : '') +
+    '</div><div class="review">' + rows + '</div>';
+}
+
 function renderResult() {
   const correct = session.answers.filter(({q, selected}) => selected === q.correct).length;
   const errorsCount = session.answers.length - correct;
-  const unanswered = session.items.length - session.answers.length;
   let title = "Занятие завершено";
   if (session.blocks) title = session.passed ? "Экзамен сдан" : "Экзамен не сдан";
   const routeTraining = Boolean(session.routeStep && !session.blocks);
@@ -631,24 +696,11 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const practiceBackLabels = {tickets: "К билетам", topics: "К темам", "course-overview": "К разделам", saved: "К сохранённым"};
+  const practiceBackLabels = {tickets: "К билетам", topics: "К темам", "course-overview": "К разделам", saved: "К сохранённым", "exam-review": "К разбору экзамена"};
   const leaveLabel = session.routeStep ? "К маршруту" : session.blocks ? "К экзамену" :
     practiceBackLabels[previousPage] ?? "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
-  const rows = session.items.map((q, index) => {
-    const selected = session.answers[index]?.selected;
-    const right = selected === q.correct;
-    return '<details class="review-item" data-correct="' + right +
-      '"><summary><span class="review-number">' + (index + 1) + '</span><span class="review-question">' +
-      escape(q.text) + '</span><span class="review-status ' + (right ? 'is-right' : 'is-wrong') + '">' +
-      (right ? 'Верно' : selected === undefined ? 'Пропуск' : 'Ошибка') +
-      '</span></summary><div class="review-body">' + questionImage(q, true) +
-      (!right && selected !== undefined ? '<div class="review-pick"><span>Ваш ответ</span><p>' +
-        escape(q.choices[selected]) + '</p></div>' : '') +
-      '<div class="review-pick correct-pick"><span>Правильный ответ</span><p>' +
-      escape(q.choices[q.correct]) + '</p></div>' + answerExplanation(q) +
-      '<div class="review-bookmark">' + bookmarkButton(q) + '</div></div></details>';
-  }).join("");
+  const entries = session.items.map((q, index) => ({q, selected: session.answers[index]?.selected, number: index + 1}));
   app.innerHTML = '<section class="panel narrow result-panel"><div class="result-top"><div><h1>' + escape(title) +
     '</h1><p>' + escape(message) +
     '</p></div><div class="score' + (failed ? ' is-failed' : '') + '"><strong>' + correct + ' / ' + session.items.length +
@@ -660,11 +712,7 @@ function renderResult() {
     button(leaveLabel, leaveAction, previousPage, retry ? "secondary" : "primary") +
     (session.blocks ? button("История попыток", "navigate", "exam-history") : "") +
     (!retry && errorsCount ? button("Повторить ошибки", "mistakes") : "") + '</div>' +
-    '<div class="review-header"><h2>Разбор ответов</h2>' +
-    (errorsCount + unanswered > 0 ? '<div class="review-filters" role="group" aria-label="Показать ответы">' +
-      '<button data-action="review-filter" data-value="all" aria-pressed="true">Все</button>' +
-      '<button data-action="review-filter" data-value="missed" aria-pressed="false">' + (unanswered ? 'Ошибки и пропуски' : 'Ошибки') + '</button></div>' : '') +
-    '</div><div class="review">' + rows + '</div></div></section>';
+    answerReview(entries) + '</div></section>';
 }
 function prioritized(items) {
   return shuffled(items).sort((a, b) => {
@@ -843,6 +891,20 @@ document.addEventListener("click", event => {
       start(blocks.flatMap(entries => entries[0]), "Пробный экзамен", blocks);
       break;
     }
+    case "open-exam-review": {
+      const entry = progress.examHistory[Number(value)];
+      if (page !== "exam-history" || !Array.isArray(entry?.review)) break;
+      examReviewEntry = entry;
+      navigate("exam-review");
+      break;
+    }
+    case "repeat-exam-errors":
+      if (page === "exam-review") {
+        const items = storedExamQuestions(examReviewEntry)
+          .filter(({q, selected}) => selected !== undefined && selected !== q.correct).map(({q}) => q);
+        start(shuffled(items).slice(0, 10), "Ошибки экзамена");
+      }
+      break;
     case "choose":
       if (page !== "study" || (!session.blocks && session.picked >= 0)) break;
       session.picked = Number(value);
@@ -850,7 +912,7 @@ document.addEventListener("click", event => {
       document.querySelector(session.blocks ? '.answer.selected' : '#answer-explanation')?.focus();
       break;
     case "review-filter":
-      if (page !== "result") break;
+      if (page !== "result" && page !== "exam-review") break;
       for (const control of app.querySelectorAll(".review-filters button")) {
         control.setAttribute("aria-pressed", String(control === target));
       }
