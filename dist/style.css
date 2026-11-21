@@ -564,6 +564,35 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .week-flame { display: grid; place-items: center; height: 20px; line-height: 1; }
 .weekday { text-transform: capitalize; font-weight: 650; }
 .streak-rule { color: var(--muted); font-size: .875rem; margin: 11px 0 0; }
+.weekly-practice {
+  margin: 14px 0; padding: 12px; border: 1px solid #456677; border-radius: 13px;
+  background: radial-gradient(ellipse at 95% 4%, #34476a, transparent 58%), #202f4a;
+}
+.weekly-practice-head { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.weekly-practice-head h2 { margin: 0 0 4px; }
+.weekly-practice-head p { margin: 0; color: var(--muted); font-size: .875rem; }
+.weekly-practice-total { display: grid; justify-items: end; color: var(--muted); font-size: .8125rem; }
+.weekly-practice-total strong { color: #abf0e8; font-size: 1.55rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.practice-chart {
+  display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 3px;
+  padding: 0; margin: 12px 0 7px; list-style: none;
+}
+.practice-bar {
+  display: grid; grid-template-rows: auto 50px auto; justify-items: center; gap: 4px; width: 100%;
+  padding: 4px 0; border: 1px solid transparent; border-radius: 7px; color: var(--muted);
+  background: transparent; font-size: .8125rem; font-variant-numeric: tabular-nums;
+}
+.practice-bar:hover { background: #344565; }
+.practice-bar[aria-pressed=true] { color: var(--ink); border-color: #638a9c; background: #30495d; }
+.practice-bar-track { display: flex; align-items: end; width: min(60%, 24px); border-radius: 4px; background: #3e4d6b; }
+.practice-bar-track > span {
+  width: 100%; height: var(--practice-fill); border-radius: inherit;
+  background: linear-gradient(0deg,#59b6cf,#9be9d6);
+}
+.practice-bar.is-today .practice-bar-track > span { background: linear-gradient(0deg,#66cbc9,#c6fff0); }
+.practice-bar-value { font-weight: 650; }
+.practice-bar-day { text-transform: capitalize; }
+.practice-day-detail { min-height: 1.35em; margin: 0; color: #c9e5ed; font-size: .875rem; }
 .streak-earned {
   display: flex; align-items: center; gap: 8px; background: var(--streak-bg); color: var(--streak);
   border-left: 2px solid var(--streak); padding: 8px 11px; font-weight: 650;

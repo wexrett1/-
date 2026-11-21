@@ -58,3 +58,18 @@ export function studyActivity(days, now = new Date()) {
   });
   return {current: streak(history, now), best, doneToday: daySet.has(today), week};
 }
+
+export function practiceWeek(week, totals, since) {
+  return week.map(day => {
+    const saved = totals[day.key];
+    const count = Number.isSafeInteger(saved) && saved >= 0 ? saved :
+      day.today || (since && day.key >= since) ? 0 : null;
+    return {...day, count};
+  });
+}
+
+export function retainPracticeDays(totals, day, count) {
+  return Object.fromEntries(Object.entries({...totals, [day]: count}).filter(([key, value]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isSafeInteger(value) && value >= 0
+  ).sort(([a], [b]) => a.localeCompare(b)).slice(-14));
+}

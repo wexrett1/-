@@ -1,7 +1,7 @@
 import {config} from "./config.js";
 import {buildCourse, courseTopics, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
-import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity} from "./study.js";
+import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity, practiceWeek, retainPracticeDays} from "./study.js";
 
 const app = document.querySelector("#app");
 const offlineData = globalThis.PDD_OFFLINE_DATA;
@@ -9,10 +9,13 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: [], dailyTarget: 10};
+let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: [],
+  dailyTarget: 10, practiceTotals: {}, practiceSince: ""};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 if (!Array.isArray(progress.days)) progress.days = [];
+if (!progress.practiceTotals || typeof progress.practiceTotals !== "object") progress.practiceTotals = {};
+if (!/^\d{4}-\d{2}-\d{2}$/.test(progress.practiceSince)) progress.practiceSince = "";
 const examHistoryLimit = 10;
 progress.examHistory = Array.isArray(progress.examHistory) ? progress.examHistory.filter(attempt =>
   Number.isFinite(attempt?.at) && attempt.at > 0 && attempt.at < 8640000000000000 &&
@@ -31,6 +34,7 @@ if (!dailyTargets.includes(progress.dailyTarget)) progress.dailyTarget = 10;
 const savedPageSize = 24;
 const savedView = {query: "", wrongOnly: false, limit: savedPageSize};
 let topicMistakesOnly = false;
+let practiceDay = "";
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
 let examReviewEntry = null;
@@ -259,6 +263,46 @@ function todayQuestions(day = localDay()) {
   return new Set(daily?.day === day && Array.isArray(daily.ids) ? daily.ids.filter(id => byId.has(id)) : []);
 }
 
+function practiceHistory() {
+  const totals = progress.practiceTotals;
+  const latestDay = progress.daily?.day;
+  const hasLegacy = typeof latestDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(latestDay);
+  return hasLegacy ? {...totals, [latestDay]: todayQuestions(latestDay).size} : totals;
+}
+
+function firstPracticeDay(totals) {
+  if (progress.practiceSince) return progress.practiceSince;
+  return Object.keys(totals).filter(day => /^\d{4}-\d{2}-\d{2}$/.test(day)).sort()[0] ?? "";
+}
+
+function practiceDayLabel({date, count}) {
+  return longDate.format(date) + (count === null ? " · Нет записи" : " · Вопросов: " + count);
+}
+
+function renderWeeklyPractice(week) {
+  const totals = practiceHistory();
+  const days = practiceWeek(week, totals, firstPracticeDay(totals));
+  const selected = days.find(item => item.key === practiceDay) ?? days.find(item => item.today);
+  const sum = days.reduce((result, item) => result + (item.count ?? 0), 0);
+  const scale = Math.max(progress.dailyTarget, ...days.map(item => item.count ?? 0));
+  const bars = days.map(item => {
+    const fill = item.count ? Math.max(5, Math.round(100 * item.count / scale)) : 0;
+    return '<li><button class="practice-bar' + (item.today ? ' is-today' : '') +
+      '" data-action="practice-day" data-value="' + item.key + '" data-day-label="' + escape(practiceDayLabel(item)) +
+      '" aria-label="' + escape(practiceDayLabel(item)) + '" aria-pressed="' + (item === selected) + '">' +
+      '<span class="practice-bar-value" aria-hidden="true">' + (item.count ?? '–') +
+      '</span><span class="practice-bar-track" aria-hidden="true"><span style="--practice-fill:' + fill +
+      '%"></span></span><span class="practice-bar-day" aria-hidden="true">' + escape(shortWeekday.format(item.date)) +
+      '</span></button></li>';
+  }).join("");
+  return '<section class="weekly-practice" aria-labelledby="weekly-practice-title"><div class="weekly-practice-head">' +
+    '<div><h2 id="weekly-practice-title">Неделя практики</h2><p>Каждый вопрос считается один раз в день</p></div>' +
+    '<div class="weekly-practice-total"><strong>' + sum + '</strong><span>Ответов</span></div></div>' +
+    '<ol class="practice-chart" aria-label="Вопросы по дням">' + bars + '</ol>' +
+    '<p class="practice-day-detail" id="practice-day-detail" aria-live="polite">' +
+    escape(practiceDayLabel(selected)) + '</p></section>';
+}
+
 function renderDailyGoal() {
   const count = todayQuestions().size;
   const target = progress.dailyTarget;
@@ -295,6 +339,7 @@ function renderActivity(answered) {
     stat("Дней подряд", current) + stat("Лучшая серия", best) +
     '</div><ol class="streak-calendar" aria-label="Последние семь дней">' + days +
     '</ol><p class="streak-rule">Огонёк за день даёт пройденный этап маршрута, тренировка от пяти вопросов или сданный экзамен.</p></section>' +
+    renderWeeklyPractice(week) +
     '<div class="metrics profile-metrics">' + stat("Вопросов решено", answered) +
     stat("Ошибок к повторению", errors().length) + '</div><button class="card saved-shortcut" data-page="saved">' +
     '<strong>Сохранённые вопросы</strong><span aria-label="Всего сохранено">' +
@@ -525,9 +570,12 @@ function record(q, selected) {
   const level = right ? Math.min((prior?.level ?? 0) + 1, 4) : 0;
   progress.answers[q.id] = {wrong: !right, level, due: Date.now() + [1, 1, 3, 7, 14][level] * DAY};
   const day = localDay();
+  const totals = practiceHistory();
   const touchedToday = todayQuestions(day);
   touchedToday.add(q.id);
   progress.daily = {day, ids: [...touchedToday]};
+  progress.practiceSince = firstPracticeDay(totals) || day;
+  progress.practiceTotals = retainPracticeDays(totals, day, touchedToday.size);
   save();
 }
 function questionImage(question, lazy = false) {
@@ -790,6 +838,14 @@ document.addEventListener("click", event => {
       app.querySelector('[data-action="daily-target"][aria-pressed="true"]')?.focus({preventScroll: true});
       break;
     }
+    case "practice-day":
+      if (page !== "profile") break;
+      practiceDay = value;
+      for (const control of app.querySelectorAll('.practice-bar')) {
+        control.setAttribute("aria-pressed", String(control === target));
+      }
+      app.querySelector("#practice-day-detail").textContent = target.dataset.dayLabel;
+      break;
     case "course-current": {
       if (page !== "home") navigate("home");
       else {
