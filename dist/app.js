@@ -76,6 +76,10 @@ function routeConnector(from, to, completed) {
     ' 100" vector-effect="non-scaling-stroke"/></svg>';
 }
 
+function chapterQuestions(chapter) {
+  return chapter.steps.flatMap(step => step.kind === "lesson" ? step.items : []);
+}
+
 function renderCourse() {
   const current = currentCourseStep(chapters, completedRoute);
   const chapter = chapters.find(item => item.id === chapterView) ?? current.chapter;
@@ -133,7 +137,8 @@ function renderCourse() {
     '<ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
     '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Прогресс</h2>' +
     '<div class="metrics">' + stat("Вопросов", Object.keys(progress.answers).filter(id => byId.has(id)).length + " / " + questions.length) +
-    stat("Дней подряд", streak(progress.days)) + '</div></section>' +
+    stat("Дней подряд", streak(progress.days)) + '</div>' +
+    '<button class="card practice-link" data-page="course-overview"><strong>Прогресс по разделам</strong></button></section>' +
     '<section class="dashboard-card"><h2>Практика</h2>' +
     '<button class="card practice-link" data-page="tickets"><strong>Все билеты</strong><small>40 билетов · 800 вопросов</small></button>' +
     '<button class="card practice-link" data-page="topics"><strong>Темы ПДД</strong><small>Короткие тренировки по темам</small></button>' +
@@ -144,14 +149,14 @@ function revealScreen() {
   app.firstElementChild?.classList.add("screen-enter");
 }
 
-function navigate(destination) {
+function navigate(destination, {chapterId = null} = {}) {
   if (!questions.length) return;
   if (page === "study" && destination !== "study" && !confirm("Завершить текущее занятие?")) return;
   clearInterval(ticker);
   page = destination;
-  if (page === "home") chapterView = null;
+  if (page === "home") chapterView = chapterId;
   const activePage = page === "study" ? previousPage : page;
-  const navPage = activePage === "saved" ? "profile" : activePage === "topics" ? "tickets" :
+  const navPage = ["saved", "course-overview"].includes(activePage) ? "profile" : activePage === "topics" ? "tickets" :
     activePage === "exam-history" ? "exam" : activePage;
   for (const link of document.querySelectorAll("nav [data-page]")) {
     if (link.dataset.page === navPage) link.setAttribute("aria-current", "page");
@@ -231,7 +236,9 @@ function renderActivity(answered) {
     '<span class="week-flame" aria-hidden="true">' + (done ? flameIcon : '·') +
     '</span><time datetime="' + key + '" aria-hidden="true">' + date.getDate() + '</time></li>'
   ).join("");
-  app.innerHTML = panel("Мой прогресс", renderDailyGoal() +
+  app.innerHTML = panel("Мой прогресс",
+    '<button class="overview-shortcut" data-page="course-overview"><span class="overview-icon" aria-hidden="true"></span>' +
+    '<span><strong>Прогресс по разделам</strong><small>Уроки, верные ответы и ошибки</small></span></button>' + renderDailyGoal() +
     '<section class="streak-panel"><div class="streak-panel-head"><div><h2>Серия тренировок</h2>' +
     '<p>' + (doneToday ? "Огонёк за сегодня зажжён." : "Заверши тренировку, чтобы зажечь огонёк.") + '</p></div>' +
     '<span class="streak-emblem' + (doneToday ? ' is-lit' : '') +
@@ -246,6 +253,34 @@ function renderActivity(answered) {
     button("На маршрут", "navigate", "home", "primary") +
     button("Повторить ошибки", "mistakes", "", "secondary", !errors().length) +
     (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
+}
+
+function renderCourseOverview() {
+  const {chapter: current, step} = currentCourseStep(chapters, completedRoute);
+  const correct = questions.filter(question => progress.answers[question.id]?.wrong === false).length;
+  const cards = chapters.map((chapter, index) => {
+    const lessons = chapter.steps.filter(item => item.kind === "lesson");
+    const completed = lessons.filter(item => completedRoute.has(item.id)).length;
+    const items = chapterQuestions(chapter);
+    const mastered = items.filter(item => progress.answers[item.id]?.wrong === false).length;
+    const wrong = items.filter(item => progress.answers[item.id]?.wrong === true).length;
+    const name = escape(chapter.title);
+    const id = escape(chapter.id);
+    return '<article class="overview-card" data-chapter="' + id + '" aria-labelledby="overview-chapter-' + id + '">' +
+      '<div class="overview-kicker"><span>Раздел ' + ordinal(index + 1) + '</span>' +
+      (step && chapter === current ? '<span class="overview-current">Сейчас на маршруте</span>' : '') + '</div>' +
+      '<h2 id="overview-chapter-' + id + '">' + name + '</h2>' +
+      '<div class="overview-lesson-count"><span>Уроки</span><strong>' + completed + ' из ' + lessons.length + '</strong></div>' +
+      '<progress value="' + completed + '" max="' + lessons.length + '" aria-label="' + name + '. Пройдено уроков"></progress>' +
+      '<p class="overview-question-count">Верных ответов: <strong>' + mastered + ' из ' + items.length + '</strong></p>' +
+      '<div class="actions overview-card-actions">' + button("На карте", "open-chapter", chapter.id) +
+      (wrong ? button("Ошибки: " + wrong, "chapter-errors", chapter.id, "primary") : '') + '</div></article>';
+  }).join("");
+  app.innerHTML = '<section class="course-overview" aria-labelledby="course-overview-title">' +
+    '<div class="overview-head"><div><h1 id="course-overview-title">Прогресс по разделам</h1>' +
+    '<p>Здесь учитываются ответы из всех тренировок.</p></div>' +
+    '<div class="overview-score"><strong>' + correct + '<span> / ' + questions.length + '</span></strong><span>Верных ответов</span></div></div>' +
+    '<div class="overview-grid">' + cards + '</div>' + button("К прогрессу", "navigate", "profile") + '</section>';
 }
 
 function practiceTabs(active) {
@@ -350,6 +385,7 @@ function render() {
   if (page === "exam") renderExam();
   if (page === "exam-history") renderExamHistory();
   if (page === "profile") renderActivity(answered);
+  if (page === "course-overview") renderCourseOverview();
   if (page === "saved") renderSavedQuestions();
   if (page === "pro") {
     const date = progress.examDate;
@@ -547,8 +583,9 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" : previousPage === "topics" ? "К темам" :
-    session.blocks ? "К экзамену" : "Продолжить обучение";
+  const practiceBackLabels = {tickets: "К билетам", topics: "К темам", "course-overview": "К разделам"};
+  const leaveLabel = session.routeStep ? "К маршруту" : session.blocks ? "К экзамену" :
+    practiceBackLabels[previousPage] ?? "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
   const rows = session.items.map((q, index) => {
     const selected = session.answers[index]?.selected;
@@ -666,6 +703,22 @@ document.addEventListener("click", event => {
       const currentNode = app.querySelector?.('[aria-current="step"]');
       currentNode?.focus({preventScroll: true});
       currentNode?.scrollIntoView({block: "center"});
+      break;
+    }
+    case "open-chapter":
+    case "chapter-errors": {
+      if (page !== "course-overview") break;
+      const chapter = chapters.find(item => item.id === value);
+      if (!chapter) break;
+      if (action === "open-chapter") {
+        navigate("home", {chapterId: chapter.id});
+        const heading = document.querySelector("#course-title");
+        heading?.setAttribute("tabindex", "-1");
+        heading?.focus({preventScroll: true});
+      } else {
+        const items = chapterQuestions(chapter).filter(q => progress.answers[q.id]?.wrong === true);
+        start(shuffled(items).slice(0, 5), chapter.title);
+      }
       break;
     }
     case "course-step": {
