@@ -56,7 +56,7 @@ button:disabled { cursor: default; }
 .screen-enter { animation: screen-enter 230ms cubic-bezier(.21,.67,.32,1) both; }
 @keyframes screen-enter { from { opacity: .72; transform: translateY(5px); } }
 @keyframes glow-in { from { opacity: .2; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
-@keyframes flame-in { from { opacity: .55; transform: translateY(3px) rotate(-27deg) scale(.77); } }
+@keyframes flame-in { from { opacity: .4; transform: translateY(4px) scale(.75); } }
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   :where(button, select) { transition: none; }
@@ -113,14 +113,8 @@ nav [data-page=profile] { --tab-accent: #ffc4a6; --tab-fill: #503344; --tab-edge
 .icon-progress::after { width: 1.5px; height: 7px; bottom: 3px; left: 8px; background: currentColor; box-shadow: -5px 3px currentColor; }
 .pro-link { color: #ddd0ff; background: #352e5499; }
 .header-actions .streak-badge { padding-inline: 9px; }
-.flame {
-  display: inline-block; position: relative; width: .76em; height: .9em; flex: none;
-  border-radius: 62% 12% 57% 50%; background: currentColor; transform: rotate(-27deg);
-}
-.flame::after {
-  content: ""; position: absolute; width: .27em; height: .39em; left: .22em; bottom: .1em;
-  background: var(--flame-cut, var(--surface)); border-radius: 65% 10% 58% 50%;
-}
+.icon-definitions { position: absolute; overflow: hidden; pointer-events: none; }
+.flame { width: 1.18em; height: 1.18em; flex: none; display: block; --flame-core: #dce1f9a1; }
 main { width: min(var(--width), calc(100% - 48px)); margin: 26px auto 52px; flex: 1; }
 footer {
   width: min(var(--width), calc(100% - 48px)); margin: auto auto 0; padding: 16px 0;
@@ -503,8 +497,21 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .review-pick p { margin: 0; }
 .review-body .why { background: var(--lift); border-radius: 5px; }
 
-.streak-badge { min-width: 44px; font-variant-numeric: tabular-nums; --flame-cut: var(--base); }
-.streak-badge.is-lit, .streak-emblem.is-lit { color: var(--streak); }
+.topbar .streak-badge {
+  min-width: 49px; gap: 5px; border: 1px solid #38364f; border-radius: 9px;
+  color: #a7abc5; background: #232641; font-variant-numeric: tabular-nums;
+}
+.topbar .streak-badge.has-streak { color: #ffcfbf; }
+.topbar .streak-badge.is-lit {
+  color: #ffba9e; border-color: #8b5266; background: linear-gradient(145deg,#503044,#2c253f);
+  box-shadow: inset 0 1px #f2a59136, 0 2px 12px #ff826638;
+}
+:is(.streak-badge,.streak-emblem,.streak-day).is-lit .flame, .streak-earned .flame {
+  --flame-core: #ffe7d6; color: #ff937f;
+}
+.streak-badge.is-lit .flame, .streak-emblem.is-lit .flame {
+  filter: drop-shadow(0 0 6px #ff8b7090);
+}
 .daily-goal {
   padding: 13px; margin: 15px 0; border: 1px solid #455b64; border-radius: 11px;
   background: radial-gradient(ellipse at right top, #35505b, transparent 75%), #242e37;
@@ -526,32 +533,42 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .daily-goal-controls > div { display: flex; gap: 4px; }
 .daily-goal-controls button { min-width: 44px; padding-inline: 7px; font-size: .875rem; border-color: #536873; }
 .daily-goal-controls button[aria-pressed=true] { color: #172428; background: #a6d8ce; border-color: transparent; }
-.streak-panel { margin: 18px 0 14px; padding: 14px 0; border-block: 1px solid var(--line); }
+.streak-panel {
+  margin: 18px 0 14px; padding: 13px; border: 1px solid #6b4965; border-radius: 13px;
+  background: radial-gradient(ellipse at 100% 0%,#76465b,transparent 60%), linear-gradient(135deg,#302641,#252842 92%);
+}
 .streak-panel-head { display: flex; justify-content: space-between; gap: 9px; align-items: flex-start; }
 .streak-panel-head h2 { margin-bottom: 5px; }
 .streak-panel-head p { color: var(--muted); margin: 0; }
-.streak-emblem { color: var(--muted); font-size: 1.65rem; padding: 3px 4px; }
+.streak-emblem {
+  display: grid; place-items: center; width: 53px; height: 53px; flex: none; color: #b4afc8;
+  font-size: 1.7rem; border: 1px solid #90647b; border-radius: 50%; background: #412d48;
+}
+.streak-emblem.is-lit { background: radial-gradient(circle,#71414e,#382944 74%); box-shadow: 0 0 18px #ed826047; }
 .streak-totals, .profile-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .streak-totals { margin: 14px 0 12px; }
-.streak-totals .metric { background: var(--lift); }
+.streak-totals .metric { background: #2d263f; border-color: #594059; }
 .streak-totals .metric strong { color: var(--streak); }
 .streak-calendar { list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; }
 .streak-day {
   display: grid; justify-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 5px;
   padding: 4px 0; color: var(--muted); font-size: .875rem;
 }
-.streak-day.is-lit { color: var(--streak); background: var(--streak-bg); --flame-cut: var(--streak-bg); }
-.streak-day.is-today { border-color: #ae8186; }
+.streak-day.is-lit { color: var(--streak); background: var(--streak-bg); border-color: #815166; }
+.streak-day.is-today { border-color: #c68a91; }
+.streak-day.is-today.is-lit { box-shadow: inset 0 1px #ffc6b940, 0 2px 9px #ed827929; }
 .week-flame { display: grid; place-items: center; height: 20px; line-height: 1; }
 .weekday { text-transform: capitalize; font-weight: 650; }
 .streak-rule { color: var(--muted); font-size: .875rem; margin: 11px 0 0; }
 .streak-earned {
   display: flex; align-items: center; gap: 8px; background: var(--streak-bg); color: var(--streak);
-  border-left: 2px solid var(--streak); padding: 8px 11px; font-weight: 650; --flame-cut: var(--streak-bg);
+  border-left: 2px solid var(--streak); padding: 8px 11px; font-weight: 650;
 }
 .streak-earned .flame { filter: drop-shadow(0 0 5px #ffad9a80); animation: flame-in 360ms ease-out; }
+.streak-badge.is-lit .flame { animation: flame-in 420ms cubic-bezier(.16,.66,.3,1); }
 @media (prefers-reduced-motion: reduce) {
-  .screen-enter .course-head::before, .screen-enter .exam-dial::after, .streak-earned .flame { animation: none; }
+  .screen-enter .course-head::before, .screen-enter .exam-dial::after,
+  .streak-earned .flame, .streak-badge.is-lit .flame { animation: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
   :where(.primary, .secondary, .topic-card, .course-shortcuts button) {

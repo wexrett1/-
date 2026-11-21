@@ -64,7 +64,7 @@ function topicStats(name) {
 }
 const routeOffsets = [36, 54, 68, 54, 36, 24];
 const ordinal = number => String(number).padStart(2, "0");
-const flameIcon = '<i class="flame" aria-hidden="true"></i>';
+const flameIcon = '<svg class="flame" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#streak-flame"/></svg>';
 const savedCount = () => [...savedQuestions].filter(id => byId.has(id)).length;
 const courseScene = '<svg class="course-scene" viewBox="0 0 264 160" aria-hidden="true" focusable="false">' +
   '<path class="scene-edge" d="M265 -5H168Q150 -5 136 9L73 72Q48 97 73 121L119 168"/>' +
@@ -179,9 +179,12 @@ function updateStreakBadge() {
   const badge = document.querySelector("#streak-badge");
   if (!badge) return;
   const count = streak(progress.days);
-  badge.classList.toggle("is-lit", progress.days.includes(localDay()));
+  const lit = progress.days.includes(localDay());
+  badge.classList.toggle("is-lit", lit);
+  badge.classList.toggle("has-streak", count > 0);
   badge.querySelector("#streak-count").textContent = String(count);
-  badge.setAttribute("aria-label", "Огоньки и прогресс. Дней подряд: " + count);
+  badge.setAttribute("aria-label", "Огоньки и прогресс. Дней подряд: " + count +
+    (lit ? ". Сегодня огонёк зажжён" : ". Сегодня огонёк ещё не зажжён"));
 }
 
 function bookmarkLabel(question) {
