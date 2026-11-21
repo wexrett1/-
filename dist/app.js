@@ -64,6 +64,10 @@ const routeOffsets = [36, 54, 68, 54, 36, 24];
 const ordinal = number => String(number).padStart(2, "0");
 const flameIcon = '<i class="flame" aria-hidden="true"></i>';
 const savedCount = () => [...savedQuestions].filter(id => byId.has(id)).length;
+const courseScene = '<svg class="course-scene" viewBox="0 0 264 160" aria-hidden="true" focusable="false">' +
+  '<path class="scene-edge" d="M265 -5H168Q150 -5 136 9L73 72Q48 97 73 121L119 168"/>' +
+  '<path class="scene-center" d="M265 20H175Q161 20 150 31L91 89Q80 100 91 111L147 168"/>' +
+  '<path class="scene-edge" d="M265 45H183Q174 45 166 53L112 107 174 169"/></svg>';
 
 function routeConnector(from, to, completed) {
   return '<svg class="course-connector' + (completed ? ' is-travelled' : '') +
@@ -115,7 +119,7 @@ function renderCourse() {
     chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
       '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
   app.innerHTML = '<div class="course-layout"><section class="course-map" data-chapter="' + escape(chapter.id) +
-    '" aria-labelledby="course-title"><div class="course-head">' +
+    '" aria-labelledby="course-title"><div class="course-head">' + courseScene +
     '<p class="course-kicker">Раздел ' + ordinal(index + 1) + ' / ' + ordinal(chapters.length) +
     '</p><h1 id="course-title">' + escape(chapter.title) + '</h1>' +
     '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
