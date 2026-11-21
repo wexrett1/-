@@ -9,7 +9,7 @@ const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
-let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: []};
+let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: [], dailyTarget: 10};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 if (!Array.isArray(progress.days)) progress.days = [];
@@ -26,6 +26,8 @@ const save = () => {
 let questions = [], topics = [], byId = new Map();
 const byTicket = new Map();
 const byTopic = new Map();
+const dailyTargets = [5, 10, 20];
+if (!dailyTargets.includes(progress.dailyTarget)) progress.dailyTarget = 10;
 let topicMistakesOnly = false;
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
@@ -182,6 +184,27 @@ function renderSavedQuestions() {
       '<p class="muted empty-saved">Сохраняй сложные вопросы во время урока или из разбора ответов. Здесь их можно повторить.</p>'));
 }
 
+function todayQuestions(day = localDay()) {
+  const daily = progress.daily;
+  return new Set(daily?.day === day && Array.isArray(daily.ids) ? daily.ids.filter(id => byId.has(id)) : []);
+}
+
+function renderDailyGoal() {
+  const count = todayQuestions().size;
+  const target = progress.dailyTarget;
+  const done = count >= target;
+  const choices = dailyTargets.map(value =>
+    '<button class="secondary" data-action="daily-target" data-value="' + value +
+    '" aria-pressed="' + (value === target) + '" aria-label="' + value + ' вопросов в день">' + value + '</button>'
+  ).join("");
+  return '<section class="daily-goal" aria-labelledby="daily-goal-title"><div class="daily-goal-head">' +
+    '<div><h2 id="daily-goal-title">Цель на сегодня</h2><p>' + (done ? 'Цель выполнена' : 'Каждый вопрос считается один раз') +
+    '</p></div><strong>' + count + ' <span>/ ' + target + '</span></strong></div>' +
+    '<progress value="' + Math.min(count, target) + '" max="' + target + '" aria-label="Дневная цель"></progress>' +
+    '<div class="daily-goal-controls"><span>Вопросов в день</span><div role="group" aria-label="Выбрать дневную цель">' +
+    choices + '</div></div></section>';
+}
+
 function renderActivity(answered) {
   const {current, best, doneToday, week} = studyActivity(progress.days);
   const days = week.map(({date, key, done, today}) =>
@@ -192,7 +215,7 @@ function renderActivity(answered) {
     '<span class="week-flame" aria-hidden="true">' + (done ? flameIcon : '·') +
     '</span><time datetime="' + key + '" aria-hidden="true">' + date.getDate() + '</time></li>'
   ).join("");
-  app.innerHTML = panel("Мой прогресс",
+  app.innerHTML = panel("Мой прогресс", renderDailyGoal() +
     '<section class="streak-panel"><div class="streak-panel-head"><div><h2>Серия тренировок</h2>' +
     '<p>' + (doneToday ? "Огонёк за сегодня зажжён." : "Заверши тренировку, чтобы зажечь огонёк.") + '</p></div>' +
     '<span class="streak-emblem' + (doneToday ? ' is-lit' : '') +
@@ -357,6 +380,10 @@ function record(q, selected) {
   const prior = progress.answers[q.id];
   const level = right ? Math.min((prior?.level ?? 0) + 1, 4) : 0;
   progress.answers[q.id] = {wrong: !right, level, due: Date.now() + [1, 1, 3, 7, 14][level] * DAY};
+  const day = localDay();
+  const touchedToday = todayQuestions(day);
+  touchedToday.add(q.id);
+  progress.daily = {day, ids: [...touchedToday]};
   save();
 }
 function questionImage(question, lazy = false) {
@@ -588,6 +615,15 @@ document.addEventListener("click", event => {
       renderTopics();
       app.querySelector('[data-action="topic-filter"]')?.focus({preventScroll: true});
       break;
+    case "daily-target": {
+      const target = Number(value);
+      if (page !== "profile" || !dailyTargets.includes(target)) break;
+      progress.dailyTarget = target;
+      save();
+      render();
+      app.querySelector('[data-action="daily-target"][aria-pressed="true"]')?.focus({preventScroll: true});
+      break;
+    }
     case "course-current": {
       if (page !== "home") navigate("home");
       else {
