@@ -40,6 +40,8 @@ function answerLesson(withError) {
     click("choose", String(choice));
     assert.deepEqual(displayedChoices(), order, "feedback cannot move the answers");
     assert.match(screen.innerHTML, new RegExp('class="answer right" data-action="choose" data-value="' + question.correct + '"'));
+    assert.match(screen.innerHTML, new RegExp('<i class="is-' + (wrong ? "wrong" : "right") + '"></i>'),
+      "short practice shows the answered question's result in the progress bar");
     click("next");
   }
 }

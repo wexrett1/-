@@ -365,11 +365,14 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .question-header strong { line-height: 1.25; }
 .question-counter { font-size: .875rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .time-chip { color: var(--accent); font-variant-numeric: tabular-nums; margin-left: 3px; }
+.time-chip.is-urgent { color: var(--danger); }
 .bar { background: #404a40; height: 5px; border-radius: 99px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--green); border-radius: inherit; }
 .bar.is-segmented { display: flex; gap: 4px; background: transparent; }
-.bar.is-segmented i { flex: 1; background: #404a40; }
-.bar.is-segmented i.filled { background: var(--green); }
+.bar.is-segmented i { flex: 1; background: #414855; }
+.bar.is-segmented i.is-active { background: #e3d07ab3; }
+.bar.is-segmented i.is-right { background: #a9d9bb; }
+.bar.is-segmented i.is-wrong { background: var(--danger); }
 .question-body, .result-body { padding: clamp(14px, 4vw, 26px); }
 .question-body h2 { max-width: 42ch; font-size: clamp(1.22rem, 3.9vw, 1.65rem); }
 .lesson-note { color: #d8dfd3; background: #292f25; border-left: 2px solid #829277; padding: 9px 12px; }

@@ -372,7 +372,10 @@ function updateTimer() {
   if (page !== "study" || !session?.blocks) return;
   const seconds = Math.max(0, Math.ceil((session.deadline - Date.now()) / 1000));
   const clock = document.querySelector("#clock");
-  if (clock) clock.textContent = Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+  if (clock) {
+    clock.textContent = Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+    clock.classList.toggle("is-urgent", seconds <= 60);
+  }
   if (!seconds) { session.timeout = true; finish(); }
 }
 function record(q, selected) {
@@ -418,20 +421,24 @@ function renderQuestion() {
   }).join("");
   const mode = blocks ? (extra ? "Дополнительный блок" : "Экзамен") : session.title;
   const answeredCount = n + (show ? 1 : 0);
-  const indicators = !blocks && items.length <= 5 ?
-    Array.from({length: items.length}, (_, i) => '<i class="' + (i < answeredCount ? 'filled' : '') + '"></i>').join("") :
-    '<i style="width:' + (100 * answeredCount / items.length) + '%"></i>';
+  const shortPractice = !blocks && items.length <= 5;
+  const indicators = shortPractice ? items.map((question, index) => {
+    const choice = index === n && show ? picked : answers[index]?.selected;
+    const state = choice === undefined ? (index === n ? "is-active" : "") :
+      choice === question.correct ? "is-right" : "is-wrong";
+    return '<i class="' + state + '"></i>';
+  }).join("") : '<i style="width:' + (100 * answeredCount / items.length) + '%"></i>';
   app.innerHTML = '<section class="panel narrow question-panel"><div class="question-top">' +
     '<div class="question-header"><strong>' + escape(mode) + '</strong><span class="question-counter">Вопрос ' +
     (n + 1) + ' из ' + items.length +
     (blocks ? ' <strong id="clock" class="time-chip" aria-label="Осталось времени"></strong>' : '') +
-    '</span></div><div class="bar' + (!blocks && items.length <= 5 ? ' is-segmented' : '') +
+    '</span></div><div class="bar' + (shortPractice ? ' is-segmented' : '') +
     '" role="progressbar" aria-label="Прогресс занятия" aria-valuemin="0" aria-valuemax="' + items.length +
     '" aria-valuenow="' + answeredCount + '">' + indicators + '</div></div>' +
     '<div class="question-body">' +
     (blocks ? "" : '<div class="question-bookmark"><span>Билет ' + q.ticket + ' · № ' + q.num + '</span>' + bookmarkButton(q) + '</div>') +
     (note ? '<p class="lesson-note">' + escape(note) + '</p>' : '') +
-    '<h2>' + escape(q.text) + '</h2>' + questionImage(q) +
+    '<h2 id="question-title" tabindex="-1">' + escape(q.text) + '</h2>' + questionImage(q) +
     '<div class="answers">' + options + '</div>' +
     (show ? '<section id="answer-explanation" class="explanation-panel ' + (right ? 'is-right' : 'is-wrong') +
       '" tabindex="-1" aria-label="Разбор ответа"><div class="explanation-heading"><span aria-hidden="true">' +
@@ -442,6 +449,13 @@ function renderQuestion() {
     '</div></div></section>';
   if (blocks) updateTimer();
 }
+function showNextQuestion() {
+  renderQuestion();
+  revealScreen();
+  window.scrollTo(0, 0);
+  document.querySelector("#question-title")?.focus({preventScroll: true});
+}
+
 function advance() {
   if (session.picked < 0) return;
   if (session.blocks && Date.now() >= session.deadline) { session.timeout = true; finish(); return; }
@@ -450,8 +464,7 @@ function advance() {
   record(q, session.picked);
   session.picked = -1;
   if (session.answers.length < session.items.length) {
-    renderQuestion();
-    window.scrollTo(0, 0);
+    showNextQuestion();
     return;
   }
   if (!session.blocks) { finish(); return; }
@@ -465,8 +478,7 @@ function advance() {
   session.extra = true;
   session.items.push(...additions);
   session.deadline = Date.now() + additions.length * 60000;
-  renderQuestion();
-  window.scrollTo(0, 0);
+  showNextQuestion();
 }
 function finish() {
   if (page !== "study") return;
