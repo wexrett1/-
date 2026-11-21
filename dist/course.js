@@ -1,4 +1,4 @@
-const course = [
+export const courseTopics = [
   ["signals", "Светофоры и знаки", [
     ["Сигналы светофора и регулировщика", "Светофор и регулировщик"],
     ["Дорожные знаки", "Дорожные знаки"],
@@ -47,7 +47,7 @@ const lessonsPerCheckpoint = 4;
 export function buildCourse(questions) {
   const remaining = new Set(questions);
   const chapters = [];
-  for (const [id, title, topics] of course) {
+  for (const [id, title, topics] of courseTopics) {
     const groups = topics.map(([topic, label]) => {
       const items = [...remaining].filter(question => question.topics.includes(topic));
       // Assign questions with multiple tags to their first applicable lesson.

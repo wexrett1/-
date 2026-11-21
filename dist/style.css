@@ -91,7 +91,7 @@ footer {
 footer a { color: inherit; text-underline-offset: 3px; }
 
 .course-layout { display: grid; grid-template-columns: minmax(0, 1fr) 244px; gap: 28px; align-items: start; }
-.course-map, .route-resume {
+.course-map, .route-resume, .topic-group {
   min-width: 0; --chapter-ink: #f0d78f; --chapter-bg: #383021;
   --chapter-shade: #272622; --chapter-line: #675941;
 }
@@ -220,6 +220,30 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .ticket-head-progress strong { color: var(--green); font-size: 1.65rem; line-height: 1; }
 .ticket-head-progress strong span { color: var(--muted); font-size: .9rem; font-weight: 550; }
 .ticket-legend { margin: 12px 0 22px; color: var(--muted); font-size: .875rem; }
+.practice-tabs {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 330px);
+  gap: 3px; background: #202530; border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-top: 13px;
+}
+.practice-tabs button {
+  min-height: 44px; color: var(--muted); background: transparent; border: 0; border-radius: 7px; font-weight: 650;
+}
+.practice-tabs button[aria-current=page] { background: #303e47; color: #b8ede6; }
+.topic-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 20px; }
+.topic-toolbar p { color: var(--muted); font-size: .875rem; margin: 0; }
+.topic-toolbar button { font-size: .875rem; }
+.topic-toolbar button[aria-pressed=true] { color: #ffc8ba; background: #423035; border-color: #83585a; }
+.topic-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0 16px; }
+.topic-group { margin: 0 0 18px; }
+.topic-group h2 { color: var(--chapter-ink); font-size: .92rem; margin: 0 0 8px; }
+.topic-group ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.topic-group li + li { border-top: 1px solid var(--line); }
+.topic-card {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; width: 100%; gap: 2px 8px;
+  min-height: 48px; padding: 9px 12px; text-align: left; border: 0; border-radius: 8px; color: var(--ink); background: transparent;
+}
+.topic-card:hover { background: var(--lift); }
+.topic-card strong { font-weight: 620; overflow-wrap: anywhere; }
+.topic-card span { color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
 .ticket-group { margin: 0 0 20px; }
 .ticket-group h2 { color: #c9d2c3; font-size: .875rem; font-weight: 650; margin: 0 0 7px; }
 .ticket-grid {
@@ -434,6 +458,7 @@ footer a { color: inherit; text-underline-offset: 3px; }
   .ticket-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (max-width: 650px) {
+  .topic-catalog { grid-template-columns: minmax(0, 1fr); }
   .topbar { padding-top: env(safe-area-inset-top); }
   .header-inner { min-height: 57px; width: calc(100% - 28px); }
   nav {
@@ -464,6 +489,9 @@ footer a { color: inherit; text-underline-offset: 3px; }
   .question-body .question-image { max-height: 226px; }
   .question-actions .primary { width: 100%; }
   .result-actions .primary, .result-actions .secondary { flex: 1 1 auto; }
+}
+@media (max-width: 390px) {
+  .topic-card { display: grid; }
 }
 @media (max-width: 360px) {
   .ticket-grid { gap: 4px; }

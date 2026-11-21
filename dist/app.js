@@ -1,5 +1,5 @@
 import {config} from "./config.js";
-import {buildCourse, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
+import {buildCourse, courseTopics, currentCourseStep, restoreCourseCompletions, reviewCourseQuestions} from "./course.js";
 import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity} from "./study.js";
 
@@ -19,6 +19,8 @@ const save = () => {
 };
 let questions = [], topics = [], byId = new Map();
 const byTicket = new Map();
+const byTopic = new Map();
+let topicMistakesOnly = false;
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
 let billing = {active: false, enabled: false, price: 199};
@@ -45,9 +47,10 @@ function errors() {
   return Object.keys(progress.answers).filter(id => progress.answers[id].wrong).map(id => byId.get(id)).filter(Boolean);
 }
 function topicStats(name) {
-  const items = questions.filter(q => q.topics.includes(name));
+  const items = byTopic.get(name) ?? [];
   const mastered = items.filter(q => progress.answers[q.id] && !progress.answers[q.id].wrong).length;
-  return {items, mastered};
+  const wrong = items.filter(q => progress.answers[q.id]?.wrong === true).length;
+  return {items, mastered, wrong};
 }
 const routeOffsets = [36, 54, 68, 54, 36, 24];
 const ordinal = number => String(number).padStart(2, "0");
@@ -109,6 +112,7 @@ function renderCourse() {
     stat("Дней подряд", streak(progress.days)) + '</div></section>' +
     '<section class="dashboard-card"><h2>Практика</h2>' +
     '<button class="card practice-link" data-page="tickets"><strong>Все билеты</strong><small>40 билетов · 800 вопросов</small></button>' +
+    '<button class="card practice-link" data-page="topics"><strong>Темы ПДД</strong><small>Короткие тренировки по темам</small></button>' +
     '<button class="card practice-link" data-page="exam"><strong>Пробный экзамен</strong><small>20 вопросов · 20 минут</small></button>' +
     '</section></aside></div>';
 }
@@ -123,8 +127,9 @@ function navigate(destination) {
   page = destination;
   if (page === "home") chapterView = null;
   const activePage = page === "study" ? previousPage : page;
+  const navPage = activePage === "saved" ? "profile" : activePage === "topics" ? "tickets" : activePage;
   for (const link of document.querySelectorAll("nav [data-page]")) {
-    if (link.dataset.page === (activePage === "saved" ? "profile" : activePage)) link.setAttribute("aria-current", "page");
+    if (link.dataset.page === navPage) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
   render();
@@ -196,6 +201,13 @@ function renderActivity(answered) {
     (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
 }
 
+function practiceTabs(active) {
+  return '<div class="practice-tabs" role="group" aria-label="Раздел практики">' +
+    [["tickets", "По билетам"], ["topics", "По темам"]].map(([destination, title]) =>
+      '<button data-page="' + destination + '" data-practice-switch="true"' + (active === destination ? ' aria-current="page"' : '') +
+      '>' + title + '</button>').join("") + '</div>';
+}
+
 function renderTickets() {
   const entries = [...byTicket.keys()].sort((a, b) => a - b).map(ticket => {
     const items = byTicket.get(ticket);
@@ -222,7 +234,29 @@ function renderTickets() {
     '<div><p class="eyebrow">Категории А и В</p><h1 id="ticket-title">Билеты ПДД</h1></div>' +
     '<p class="ticket-head-progress"><strong>' + complete + '<span> / ' + entries.length +
     '</span></strong><span>Решено</span></p></header>' +
-    '<p class="ticket-legend">Здесь учитываются ответы из билетов, уроков и экзамена.</p>' + sections.join("") + '</section>';
+    practiceTabs("tickets") + '<p class="ticket-legend">Здесь учитываются ответы из билетов, уроков и экзамена.</p>' + sections.join("") + '</section>';
+}
+
+function renderTopics() {
+  const mapped = new Set(courseTopics.flatMap(([, , entries]) => entries.map(([name]) => name)));
+  const groups = [...courseTopics, ["other", "Другие темы", topics.filter(name => !mapped.has(name)).map(name => [name, name])]];
+  const sections = groups.map(([id, title, entries]) => {
+    const rows = entries.map(([name, label]) => {
+      const {items, mastered, wrong} = topicStats(name);
+      if (!items.length || (topicMistakesOnly && !wrong)) return "";
+      const info = topicMistakesOnly ? 'Ошибок к повторению: ' + wrong : 'Верно: ' + mastered + ' из ' + items.length;
+      return '<li><button class="topic-card" data-action="topic" data-value="' + topics.indexOf(name) + '">' +
+        '<strong>' + escape(label) + '</strong><span>' + info + '</span></button></li>';
+    }).join("");
+    return rows ? '<section class="topic-group" data-chapter="' + id + '"><h2>' + title + '</h2>' +
+      '<ul>' + rows + '</ul></section>' : "";
+  }).join("");
+  app.innerHTML = '<section class="ticket-index" aria-labelledby="topic-title"><header class="ticket-head">' +
+    '<div><p class="eyebrow">Тренировки</p><h1 id="topic-title">Темы ПДД</h1></div></header>' + practiceTabs("topics") +
+    '<div class="topic-toolbar"><p>' + (topicMistakesOnly ? 'До 5 вопросов с ошибками.' : 'До 5 вопросов на выбранную тему.') +
+    '</p><button class="secondary" data-action="topic-filter" aria-pressed="' + topicMistakesOnly +
+    '">Только ошибки</button></div>' + (sections ? '<div class="topic-catalog">' + sections + '</div>' :
+      '<p class="muted">Пока нет ошибок для повторения.</p>') + '</section>';
 }
 
 function renderExam() {
@@ -244,6 +278,7 @@ function render() {
   const answered = Object.keys(progress.answers).filter(id => byId.has(id)).length;
   if (page === "home") renderCourse();
   if (page === "tickets") renderTickets();
+  if (page === "topics") renderTopics();
   if (page === "exam") renderExam();
   if (page === "profile") renderActivity(answered);
   if (page === "saved") renderSavedQuestions();
@@ -420,7 +455,7 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" :
+  const leaveLabel = session.routeStep ? "К маршруту" : previousPage === "tickets" ? "К билетам" : previousPage === "topics" ? "К темам" :
     session.blocks ? "К экзамену" : "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
   const rows = session.items.map((q, index) => {
@@ -495,12 +530,28 @@ async function buy(target) {
 document.addEventListener("click", event => {
   const target = event.target.closest("button");
   if (!target || !questions.length) return;
-  if (target.dataset.page) { navigate(target.dataset.page); return; }
+  if (target.dataset.page) {
+    navigate(target.dataset.page);
+    if (target.dataset.practiceSwitch === "true") app.querySelector('.practice-tabs [aria-current="page"]')?.focus({preventScroll: true});
+    return;
+  }
   const {action, value} = target.dataset;
   switch (action) {
     case "navigate": navigate(value); break;
     case "ticket": start(byTicket.get(Number(value)) ?? [], "Билет " + value); break;
-    case "topic": start(prioritized(topicStats(topics[Number(value)]).items).slice(0, 5), topics[Number(value)]); break;
+    case "topic": {
+      const name = topics[Number(value)];
+      const {items} = topicStats(name);
+      const pool = page === "topics" && topicMistakesOnly ? items.filter(q => progress.answers[q.id]?.wrong === true) : items;
+      start(prioritized(pool).slice(0, 5), name);
+      break;
+    }
+    case "topic-filter":
+      if (page !== "topics") break;
+      topicMistakesOnly = !topicMistakesOnly;
+      renderTopics();
+      app.querySelector('[data-action="topic-filter"]')?.focus({preventScroll: true});
+      break;
     case "course-current": {
       if (page !== "home") navigate("home");
       else {
@@ -615,6 +666,10 @@ async function init() {
     for (const question of questions) {
       if (!byTicket.has(question.ticket)) byTicket.set(question.ticket, []);
       byTicket.get(question.ticket).push(question);
+      for (const topic of new Set(question.topics)) {
+        if (!byTopic.has(topic)) byTopic.set(topic, []);
+        byTopic.get(topic).push(question);
+      }
     }
     chapters = buildCourse(questions);
     if (progress.routePassVersion !== 1) {
@@ -623,7 +678,7 @@ async function init() {
       progress.routePassVersion = 1;
       save();
     }
-    topics = [...new Set(questions.flatMap(q => q.topics))].sort((a, b) => a.localeCompare(b, "ru"));
+    topics = [...byTopic.keys()].sort((a, b) => a.localeCompare(b, "ru"));
     if (!config.siteOnly) {
       void api("status").then(result => { billing = result; if (page !== "study") render(); }).catch(() => {});
     }
