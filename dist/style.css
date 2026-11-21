@@ -174,6 +174,10 @@ footer a { color: inherit; text-underline-offset: 3px; }
 .resume-copy small { font-size: .875rem; }
 .route-resume .primary { flex: none; color: #191627; background: var(--chapter-ink); box-shadow: 0 4px 17px var(--chapter-halo); }
 .route-resume .primary:hover { filter: brightness(1.06); }
+.route-resume.draft-resume {
+  --chapter-ink: #e2d7ff; --chapter-shade: #302e56;
+  --chapter-line: #7166ad; --chapter-halo: #a793e448;
+}
 .course-tools {
   display: flex; justify-content: space-between; align-items: end; gap: 9px;
   border-bottom: 1px solid var(--line); padding: 16px 0 12px;

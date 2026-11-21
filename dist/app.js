@@ -8,13 +8,14 @@ const chapterPicker = document.querySelector("#chapter-picker");
 const illustrationViewer = document.querySelector("#illustration-viewer");
 let chapterPickerTrigger = null;
 let illustrationTrigger = null;
+if (globalThis.history && "scrollRestoration" in history) history.scrollRestoration = "manual";
 const offlineData = globalThis.PDD_OFFLINE_DATA;
 const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
 telegram?.expand();
 const progressKey = "pdd-progress-v1";
 let progress = {answers: {}, days: [], examDate: "", routeDone: [], savedQuestions: [], examHistory: [],
-  dailyTarget: 10, practiceTotals: {}, practiceSince: ""};
+  dailyTarget: 10, practiceTotals: {}, practiceSince: "", practiceDraft: null};
 try { progress = {...progress, ...JSON.parse(localStorage.getItem(progressKey))}; } catch {}
 let completedRoute = new Set(Array.isArray(progress.routeDone) ? progress.routeDone : []);
 if (!Array.isArray(progress.days)) progress.days = [];
@@ -178,14 +179,18 @@ function renderCourse() {
       '>' + node + '</button></li>';
   }).join("");
   const nextStep = current.step;
-  const resume = nextStep ? '<div class="route-resume" data-chapter="' + escape(current.chapter.id) +
+  const draft = restorePracticeDraft();
+  const draftResume = draft ? '<div class="route-resume draft-resume"><div class="resume-copy"><span>Незавершённая тренировка</span>' +
+    '<strong>' + escape(draft.title) + '</strong><small>Вопрос ' + (draft.answers.length + 1) + ' из ' + draft.items.length +
+    '</small></div>' + button("Продолжить", "resume-practice", "", "primary") + '</div>' : '';
+  const resume = draftResume || (nextStep ? '<div class="route-resume" data-chapter="' + escape(current.chapter.id) +
     '"><div class="resume-copy"><span>Текущий этап</span><strong>' +
     escape(nextStep.title) + '</strong><small>' +
     escape(chapter !== current.chapter ? current.chapter.title : nextStep.kind === "exam" ? "20 вопросов · 20 минут" :
       nextStep.kind === "review" ? "Вопросы из последних уроков" : "Вопросов: " + nextStep.items.length) +
     '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : nextStep.kind === "review" ? "Повторить" :
       completedRoute.size ? "Продолжить" : "Начать урок", "course-step", nextStep.id, "primary") +
-    '</div>' : '<p class="course-finished" role="status">Маршрут пройден</p>';
+    '</div>' : '<p class="course-finished" role="status">Маршрут пройден</p>');
   app.innerHTML = '<div class="course-layout"><section class="course-map" data-chapter="' + escape(chapter.id) +
     '" aria-labelledby="course-title"><div class="course-head">' + courseScene +
     '<p class="course-kicker">Раздел ' + ordinal(index + 1) + ' / ' + ordinal(chapters.length) +
@@ -215,7 +220,8 @@ function revealScreen() {
 
 function navigate(destination, {chapterId = null} = {}) {
   if (!questions.length) return;
-  if (page === "study" && destination !== "study" && !confirm("Завершить текущее занятие?")) return;
+  if (page === "study" && destination !== "study" &&
+      !confirm(session.blocks ? "Завершить текущий экзамен?" : "Выйти из тренировки? Её можно будет продолжить.")) return;
   clearInterval(ticker);
   page = destination;
   if (page === "home") chapterView = chapterId;
@@ -526,7 +532,7 @@ function renderExamHistory() {
       '<p class="muted">Здесь появятся результаты завершённых экзаменов.</p>'));
 }
 
-function examQuestionStamp(question) {
+function questionStamp(question) {
   const value = JSON.stringify([question.text, question.choices, question.correct, question.image]);
   let stamp = 2166136261;
   for (let i = 0; i < value.length; i++) stamp = Math.imul(stamp ^ value.charCodeAt(i), 16777619);
@@ -537,11 +543,63 @@ function storedExamQuestions(attempt) {
   if (!Array.isArray(attempt?.review)) return [];
   return attempt.review.slice(0, Math.min(30, attempt.total)).flatMap((item, index) => {
     const q = byId.get(item?.id);
-    if (!q || examQuestionStamp(q) !== item.stamp) return [];
+    if (!q || questionStamp(q) !== item.stamp) return [];
     const selected = item.selected;
     if (selected !== null && (!Number.isInteger(selected) || selected < 0 || selected >= q.choices.length)) return [];
     return [{q, selected: selected ?? undefined, number: index + 1}];
   });
+}
+
+function validChoice(question, index) {
+  return Number.isInteger(index) && index >= 0 && index < question.choices.length;
+}
+
+function restorePracticeDraft() {
+  const draft = progress.practiceDraft;
+  if (!draft || typeof draft.title !== "string" || draft.title.length > 200 ||
+      !Array.isArray(draft.items) || draft.items.length < 1 || draft.items.length > 20 ||
+      !Array.isArray(draft.selected) || draft.selected.length >= draft.items.length) return null;
+  const items = draft.items.map(item => byId.get(item?.id));
+  if (new Set(items).size !== items.length || items.some((q, index) => !q || draft.items[index].stamp !== questionStamp(q))) return null;
+  if (draft.selected.some((index, i) => !validChoice(items[i], index))) return null;
+  const next = items[draft.selected.length];
+  if (draft.picked !== -1 && !validChoice(next, draft.picked)) return null;
+  if (!Array.isArray(draft.order) || draft.order.length !== next.choices.length ||
+      new Set(draft.order).size !== next.choices.length || draft.order.some(index => !validChoice(next, index))) return null;
+  let routeStep = null;
+  if (draft.route) {
+    routeStep = chapters.flatMap(chapter => chapter.steps).find(step => step.id === draft.route);
+    const {step: current} = currentCourseStep(chapters, completedRoute);
+    if (!routeStep?.items || (routeStep !== current && !completedRoute.has(routeStep.id)) ||
+        items.some(q => !routeStep.items.includes(q))) return null;
+    const expected = routeStep.kind === "review" ? Math.min(5, routeStep.items.length) : routeStep.items.length;
+    if (items.length !== expected) return null;
+  }
+  const choiceOrders = [];
+  choiceOrders[draft.selected.length] = draft.order;
+  return {items, title: draft.title, routeStep, answers: draft.selected.map((selected, index) => ({q: items[index], selected})),
+    choiceOrders, picked: draft.picked, passed: false};
+}
+
+function savePracticeDraft() {
+  if (!session.blocks) {
+    const count = session.answers.length;
+    session.draftItems ??= session.items.map(q => ({id: q.id, stamp: questionStamp(q)}));
+    progress.practiceDraft = {items: session.draftItems, title: session.title, route: session.routeStep?.id,
+      source: previousPage, selected: session.answers.map(answer => answer.selected), picked: session.picked,
+      order: session.choiceOrders[count]};
+  }
+  save();
+}
+
+function resumePractice() {
+  const restored = restorePracticeDraft();
+  if (!restored) return;
+  const source = progress.practiceDraft.source;
+  const sources = ["home", "tickets", "topics", "profile", "saved", "course-overview", "pro", "exam-history"];
+  previousPage = sources.includes(source) ? source : source === "exam-review" ? "exam-history" : "home";
+  session = restored;
+  navigate("study");
 }
 
 function renderStoredExam() {
@@ -607,6 +665,7 @@ function start(items, title, blocks = null, routeStep = null) {
   session = {items, title, blocks, routeStep, answers: [], choiceOrders: [], picked: -1, deadline: Date.now() + 20 * 60000, extra: false, passed: false};
   navigate("study");
   if (blocks) ticker = setInterval(updateTimer, 250);
+  else savePracticeDraft();
 }
 function updateTimer() {
   if (page !== "study" || !session?.blocks) return;
@@ -630,7 +689,6 @@ function record(q, selected) {
   progress.daily = {day, ids: [...touchedToday]};
   progress.practiceSince = firstPracticeDay(totals) || day;
   progress.practiceTotals = retainPracticeDays(totals, day, touchedToday.size);
-  save();
 }
 function questionImageSource(question) {
   return offlineData ? offlineData.images[question.image] : "./data/images/" + encodeURIComponent(question.image);
@@ -743,6 +801,7 @@ function advance() {
   session.picked = -1;
   if (session.answers.length < session.items.length) {
     showNextQuestion();
+    savePracticeDraft();
     return;
   }
   if (!session.blocks) { finish(); return; }
@@ -757,6 +816,7 @@ function advance() {
   session.items.push(...additions);
   session.deadline = Date.now() + additions.length * 60000;
   showNextQuestion();
+  save();
 }
 function finish() {
   if (page !== "study") return;
@@ -764,6 +824,7 @@ function finish() {
   if (!session.blocks) {
     session.passed = session.answers.length === session.items.length &&
       session.answers.every(({q, selected}) => selected === q.correct);
+    progress.practiceDraft = null;
   }
   const qualifiesForStreak = session.blocks || session.routeStep ? session.passed :
     session.items.length >= 5 && session.answers.length === session.items.length;
@@ -781,7 +842,7 @@ function finish() {
       at: Date.now(), correct: session.answers.filter(({q, selected}) => selected === q.correct).length,
       total: session.items.length, passed: session.passed, timeout: Boolean(session.timeout),
       review: session.items.map((q, index) => ({
-        id: q.id, stamp: examQuestionStamp(q), selected: session.answers[index]?.selected ?? null
+        id: q.id, stamp: questionStamp(q), selected: session.answers[index]?.selected ?? null
       }))
     });
     progress.examHistory.length = Math.min(progress.examHistory.length, examHistoryLimit);
@@ -988,6 +1049,9 @@ document.addEventListener("click", event => {
       }
       break;
     }
+    case "resume-practice":
+      if (page === "home") resumePractice();
+      break;
     case "retry-stage":
       if (page === "result" && session.routeStep && !session.blocks && !session.passed) {
         start(session.items, session.title, null, session.routeStep);
@@ -1067,6 +1131,7 @@ document.addEventListener("click", event => {
       if (page !== "study" || (!session.blocks && session.picked >= 0)) break;
       session.picked = Number(value);
       renderQuestion();
+      if (!session.blocks) savePracticeDraft();
       document.querySelector(session.blocks ? '.answer.selected' : '#answer-explanation')?.focus();
       break;
     case "review-filter":
