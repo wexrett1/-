@@ -63,6 +63,14 @@ function topicStats(name) {
 const routeOffsets = [36, 54, 68, 54, 36, 24];
 const ordinal = number => String(number).padStart(2, "0");
 const flameIcon = '<i class="flame" aria-hidden="true"></i>';
+const savedCount = () => [...savedQuestions].filter(id => byId.has(id)).length;
+
+function routeConnector(from, to, completed) {
+  return '<svg class="course-connector' + (completed ? ' is-travelled' : '') +
+    '" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+    '<path d="M' + from + ' 0 C' + from + ' 43 ' + to + ' 57 ' + to +
+    ' 100" vector-effect="non-scaling-stroke"/></svg>';
+}
 
 function renderCourse() {
   const current = currentCourseStep(chapters, completedRoute);
@@ -86,8 +94,8 @@ function renderCourse() {
     const node = '<span class="course-track" aria-hidden="true"><span class="course-disc">' + symbol +
       '</span></span><span class="course-caption"><strong>' + escape(title) +
       '</strong><span class="course-detail">' + escape(info) + '</span></span>';
-    return '<li class="course-entry" style="--node-left:' + offset + '%;--node-next:' + nextOffset + '%">' +
-      (i < chapter.steps.length - 1 ? '<span class="course-connector' + (completed ? ' is-travelled' : '') + '" aria-hidden="true"></span>' : '') +
+    return '<li class="course-entry" style="--node-left:' + offset + '%">' +
+      (i < chapter.steps.length - 1 ? routeConnector(offset, nextOffset, completed) : '') +
       '<button class="course-node ' + (active ? "is-current" : completed ? "is-complete" : "is-locked") +
       '" data-action="course-step" data-value="' + escape(step.id) + '"' +
       (active ? ' aria-current="step"' : '') + (locked ? ' disabled aria-label="' + escape(label + " — этап закрыт") + '"' : '') +
@@ -112,7 +120,11 @@ function renderCourse() {
     '</p><h1 id="course-title">' + escape(chapter.title) + '</h1>' +
     '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
     '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + lessons.length +
-    ' уроков</span></div></div>' + resume + '<div class="course-tools">' + select +
+    ' уроков</span></div></div>' + resume +
+    '<div class="course-shortcuts" aria-label="Быстрая практика">' +
+    '<button data-page="topics"><strong>Темы ПДД</strong><span>Тренировка по темам</span></button>' +
+    '<button data-page="saved"><strong>Сохранённое</strong><span>Вопросов: ' + savedCount() + '</span></button></div>' +
+    '<div class="course-tools">' + select +
     (nextStep ? button("К этапу", "course-current", "", "secondary") : "") + '</div>' +
     '<ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
     '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Прогресс</h2>' +
@@ -226,7 +238,7 @@ function renderActivity(answered) {
     '<div class="metrics profile-metrics">' + stat("Вопросов решено", answered) +
     stat("Ошибок к повторению", errors().length) + '</div><button class="card saved-shortcut" data-page="saved">' +
     '<strong>Сохранённые вопросы</strong><span aria-label="Всего сохранено">' +
-    [...savedQuestions].filter(id => byId.has(id)).length + '</span></button><div class="actions">' +
+    savedCount() + '</span></button><div class="actions">' +
     button("На маршрут", "navigate", "home", "primary") +
     button("Повторить ошибки", "mistakes", "", "secondary", !errors().length) +
     (billing.active ? button("Повторение по расписанию", "due") : button("Возможности Pro", "navigate", "pro")) + '</div>');
@@ -284,6 +296,8 @@ function renderTopics() {
   }).join("");
   app.innerHTML = '<section class="ticket-index" aria-labelledby="topic-title"><header class="ticket-head">' +
     '<div><p class="eyebrow">Тренировки</p><h1 id="topic-title">Темы ПДД</h1></div></header>' + practiceTabs("topics") +
+    '<aside class="mixed-practice"><div><strong>Быстрая тренировка</strong><p>5 вопросов по всему курсу. Сначала ошибки.</p></div>' +
+    button("Начать", "mixed-practice", "", "primary") + '</aside>' +
     '<div class="topic-toolbar"><p>' + (topicMistakesOnly ? 'До 5 вопросов с ошибками.' : 'До 5 вопросов на выбранную тему.') +
     '</p><button class="secondary" data-action="topic-filter" aria-pressed="' + topicMistakesOnly +
     '">Только ошибки</button></div>' + (sections ? '<div class="topic-catalog">' + sections + '</div>' :
@@ -621,6 +635,9 @@ document.addEventListener("click", event => {
       start(prioritized(pool).slice(0, 5), name);
       break;
     }
+    case "mixed-practice":
+      if (page === "topics") start(prioritized(questions).slice(0, 5), "Быстрая тренировка");
+      break;
     case "topic-filter":
       if (page !== "topics") break;
       topicMistakesOnly = !topicMistakesOnly;
