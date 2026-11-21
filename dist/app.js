@@ -4,6 +4,8 @@ import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity, practiceWeek, retainPracticeDays} from "./study.js";
 
 const app = document.querySelector("#app");
+const illustrationViewer = document.querySelector("#illustration-viewer");
+let illustrationTrigger = null;
 const offlineData = globalThis.PDD_OFFLINE_DATA;
 const telegram = globalThis.Telegram?.WebApp;
 telegram?.ready();
@@ -578,12 +580,47 @@ function record(q, selected) {
   progress.practiceTotals = retainPracticeDays(totals, day, touchedToday.size);
   save();
 }
+function questionImageSource(question) {
+  return offlineData ? offlineData.images[question.image] : "./data/images/" + encodeURIComponent(question.image);
+}
+
 function questionImage(question, lazy = false) {
   if (!question.image) return "";
-  const source = offlineData ? offlineData.images[question.image] : "./data/images/" + encodeURIComponent(question.image);
-  return '<img class="question-image" src="' + escape(source) + '" alt="Дорожная ситуация к вопросу"' +
+  const image = '<img class="question-image" src="' + escape(questionImageSource(question)) + '" alt="Дорожная ситуация к вопросу"' +
     (lazy ? ' loading="lazy" decoding="async"' : '') + '>';
+  if (!illustrationViewer?.showModal) return image;
+  return '<button class="question-illustration" data-action="open-illustration" data-value="' + escape(question.id) +
+    '" aria-label="Увеличить изображение к вопросу">' + image + '<span aria-hidden="true">Увеличить</span></button>';
 }
+
+function setIllustrationZoom(zoomed) {
+  const control = illustrationViewer.querySelector('[data-action="zoom-illustration"]');
+  illustrationViewer.classList.toggle("is-zoomed", zoomed);
+  control.setAttribute("aria-pressed", String(zoomed));
+  control.textContent = zoomed ? "По размеру экрана" : "Приблизить";
+  illustrationViewer.querySelector("#illustration-hint").hidden = !zoomed;
+  const frame = illustrationViewer.querySelector(".illustration-frame");
+  if (zoomed) frame.setAttribute("aria-describedby", "illustration-hint");
+  else frame.removeAttribute("aria-describedby");
+  frame.scrollLeft = zoomed ? (frame.scrollWidth - frame.clientWidth) / 2 : 0;
+  frame.scrollTop = 0;
+}
+
+function openIllustration(id, trigger) {
+  const question = byId.get(id);
+  if (!question?.image || !illustrationViewer?.showModal || illustrationViewer.open) return;
+  illustrationTrigger = trigger;
+  illustrationViewer.querySelector("img").src = questionImageSource(question);
+  illustrationViewer.showModal();
+  setIllustrationZoom(false);
+}
+
+illustrationViewer?.addEventListener("close", () => {
+  if (illustrationViewer.open) return;
+  illustrationViewer.querySelector("img").removeAttribute("src");
+  if (illustrationTrigger?.isConnected) illustrationTrigger.focus({preventScroll: true});
+  illustrationTrigger = null;
+});
 
 function answerExplanation(question) {
   return '<div class="why"><strong>Почему так</strong><p>' + escape(question.explanation) + '</p>' +
@@ -671,6 +708,7 @@ function advance() {
 }
 function finish() {
   if (page !== "study") return;
+  if (illustrationViewer?.open) illustrationViewer.close();
   if (!session.blocks) {
     session.passed = session.answers.length === session.items.length &&
       session.answers.every(({q, selected}) => selected === q.correct);
@@ -977,6 +1015,11 @@ document.addEventListener("click", event => {
       }
       break;
     case "next": if (page === "study") advance(); break;
+    case "open-illustration": openIllustration(value, target); break;
+    case "close-illustration": if (illustrationViewer?.open) illustrationViewer.close(); break;
+    case "zoom-illustration":
+      if (illustrationViewer?.open) setIllustrationZoom(!illustrationViewer.classList.contains("is-zoomed"));
+      break;
     case "buy": if (page === "pro") void buy(target); break;
   }
 });

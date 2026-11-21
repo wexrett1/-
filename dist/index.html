@@ -35,4 +35,17 @@
 </header>
 <main id="app"><p class="panel narrow" role="status">Загружаем билеты…</p></main>
 <footer><span>Маршрут ПДД</span><a href="https://github.com/etspring/pdd_russia" target="_blank" rel="noopener">Источник билетов</a></footer>
+<dialog id="illustration-viewer" class="illustration-viewer" aria-labelledby="illustration-title">
+  <div class="illustration-header">
+    <h2 id="illustration-title">Дорожная ситуация</h2>
+    <button class="secondary illustration-close" data-action="close-illustration" autofocus>Закрыть</button>
+  </div>
+  <div class="illustration-frame" tabindex="0" aria-label="Изображение дорожной ситуации">
+    <img class="viewer-image" alt="Дорожная ситуация к вопросу">
+  </div>
+  <div class="illustration-actions">
+    <p class="illustration-hint" id="illustration-hint" hidden>Прокрути изображение, чтобы рассмотреть края.</p>
+    <button class="primary" data-action="zoom-illustration" aria-pressed="false">Приблизить</button>
+  </div>
+</dialog>
 </body></html>
