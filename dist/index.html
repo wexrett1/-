@@ -35,6 +35,13 @@
 </header>
 <main id="app"><p class="panel narrow" role="status">Загружаем билеты…</p></main>
 <footer><span>Маршрут ПДД</span><a href="https://github.com/etspring/pdd_russia" target="_blank" rel="noopener">Источник билетов</a></footer>
+<dialog id="chapter-picker" class="chapter-picker" aria-labelledby="chapter-picker-title">
+  <div class="chapter-picker-header">
+    <div><h2 id="chapter-picker-title">Разделы маршрута</h2><p>Выбери раздел, чтобы посмотреть его этапы.</p></div>
+    <button class="secondary" data-action="close-chapter-picker" autofocus>Закрыть</button>
+  </div>
+  <ol id="chapter-picker-list" class="chapter-picker-list"></ol>
+</dialog>
 <dialog id="illustration-viewer" class="illustration-viewer" aria-labelledby="illustration-title">
   <div class="illustration-header">
     <h2 id="illustration-title">Дорожная ситуация</h2>

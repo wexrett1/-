@@ -4,7 +4,9 @@ import {lessonNote} from "./lesson-notes.js";
 import {DAY, shuffled, examBlocks, extraQuestions, localDay, streak, studyActivity, practiceWeek, retainPracticeDays} from "./study.js";
 
 const app = document.querySelector("#app");
+const chapterPicker = document.querySelector("#chapter-picker");
 const illustrationViewer = document.querySelector("#illustration-viewer");
+let chapterPickerTrigger = null;
 let illustrationTrigger = null;
 const offlineData = globalThis.PDD_OFFLINE_DATA;
 const telegram = globalThis.Telegram?.WebApp;
@@ -91,11 +93,65 @@ function chapterQuestions(chapter) {
   return chapter.steps.flatMap(step => step.kind === "lesson" ? step.items : []);
 }
 
+function chapterLessonCounts(chapter) {
+  const lessons = chapter.steps.filter(step => step.kind === "lesson");
+  return {total: lessons.length, completed: lessons.filter(step => completedRoute.has(step.id)).length};
+}
+
+function chapterPickerControl(chapter, index) {
+  if (chapterPicker?.showModal) {
+    return '<div class="course-select"><span>Раздел курса</span>' +
+      '<button class="secondary course-picker-trigger" data-action="show-chapter-picker" data-value="' + escape(chapter.id) +
+      '" aria-label="Раздел курса. Открыт раздел «' + escape(chapter.title) + '»" aria-haspopup="dialog" aria-controls="chapter-picker" aria-expanded="false">' +
+      '<span>' + ordinal(index + 1) + '. ' + escape(chapter.title) + '</span><i aria-hidden="true"></i></button></div>';
+  }
+  return '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
+    chapters.map((item, i) => '<option value="' + escape(item.id) + '"' + (item === chapter ? ' selected' : '') +
+      '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
+}
+
+function openChapterPicker(trigger, selected) {
+  if (!chapterPicker?.showModal || chapterPicker.open) return;
+  const current = currentCourseStep(chapters, completedRoute);
+  chapterPickerTrigger = trigger;
+  chapterPicker.querySelector("#chapter-picker-list").innerHTML = chapters.map((chapter, index) => {
+    const {total, completed} = chapterLessonCounts(chapter);
+    const active = current.step && chapter === current.chapter;
+    const viewed = chapter.id === selected;
+    return '<li><button class="chapter-choice" data-chapter="' + escape(chapter.id) +
+      '" data-action="choose-chapter" data-value="' + escape(chapter.id) + '"' + (viewed ? ' aria-current="true"' : '') + '>' +
+      '<span class="chapter-choice-number">' + ordinal(index + 1) + '</span><span class="chapter-choice-body"><strong>' +
+      escape(chapter.title) + '</strong><small>Уроки: ' + completed + ' из ' + total +
+      (active ? ' · Текущий этап' : '') + '</small>' +
+      '<span class="chapter-choice-track" aria-hidden="true"><span style="width:' + (total ? 100 * completed / total : 0) +
+      '%"></span></span></span></button></li>';
+  }).join("");
+  trigger.setAttribute("aria-expanded", "true");
+  chapterPicker.showModal();
+}
+
+function showCourseChapter(id) {
+  if (!chapters.some(chapter => chapter.id === id)) return;
+  chapterView = id;
+  render();
+  revealScreen();
+  window.scrollTo(0, 0);
+  document.querySelector('[data-action="show-chapter-picker"], #chapter-select')?.focus({preventScroll: true});
+}
+
+chapterPicker?.addEventListener("close", () => {
+  if (chapterPicker.open) return;
+  if (chapterPickerTrigger?.isConnected) {
+    chapterPickerTrigger.setAttribute("aria-expanded", "false");
+    chapterPickerTrigger.focus({preventScroll: true});
+  }
+  chapterPickerTrigger = null;
+});
+
 function renderCourse() {
   const current = currentCourseStep(chapters, completedRoute);
   const chapter = chapters.find(item => item.id === chapterView) ?? current.chapter;
-  const lessons = chapter.steps.filter(step => step.kind === "lesson");
-  const completedLessons = lessons.filter(step => completedRoute.has(step.id)).length;
+  const {total, completed: completedLessons} = chapterLessonCounts(chapter);
   const index = chapters.indexOf(chapter);
   let lessonNumber = 0;
   const route = chapter.steps.map((step, i) => {
@@ -130,20 +186,17 @@ function renderCourse() {
     '</small></div>' + button(nextStep.kind === "exam" ? "К экзамену" : nextStep.kind === "review" ? "Повторить" :
       completedRoute.size ? "Продолжить" : "Начать урок", "course-step", nextStep.id, "primary") +
     '</div>' : '<p class="course-finished" role="status">Маршрут пройден</p>';
-  const select = '<label class="course-select"><span>Раздел курса</span><select id="chapter-select">' +
-    chapters.map((item, i) => '<option value="' + item.id + '"' + (item === chapter ? ' selected' : '') +
-      '>' + (i + 1) + '. ' + escape(item.title) + '</option>').join("") + '</select></label>';
   app.innerHTML = '<div class="course-layout"><section class="course-map" data-chapter="' + escape(chapter.id) +
     '" aria-labelledby="course-title"><div class="course-head">' + courseScene +
     '<p class="course-kicker">Раздел ' + ordinal(index + 1) + ' / ' + ordinal(chapters.length) +
     '</p><h1 id="course-title">' + escape(chapter.title) + '</h1>' +
-    '<div class="course-meter"><progress value="' + completedLessons + '" max="' + lessons.length +
-    '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + lessons.length +
+    '<div class="course-meter"><progress value="' + completedLessons + '" max="' + total +
+    '" aria-label="Уроков пройдено в разделе"></progress><span>' + completedLessons + ' из ' + total +
     ' уроков</span></div></div>' + resume +
     '<div class="course-shortcuts" aria-label="Быстрая практика">' +
     '<button data-page="topics"><strong>Темы ПДД</strong><span>Тренировка по темам</span></button>' +
     '<button data-page="saved"><strong>Сохранённое</strong><span>Вопросов: ' + savedCount() + '</span></button></div>' +
-    '<div class="course-tools">' + select +
+    '<div class="course-tools">' + chapterPickerControl(chapter, index) +
     (nextStep ? button("К этапу", "course-current", "", "secondary") : "") + '</div>' +
     '<ol class="course-steps" aria-label="Этапы раздела">' + route + '</ol></section>' +
     '<aside class="course-sidebar" aria-label="Прогресс и практика"><section class="dashboard-card"><h2>Прогресс</h2>' +
@@ -355,8 +408,7 @@ function renderCourseOverview() {
   const {chapter: current, step} = currentCourseStep(chapters, completedRoute);
   const correct = questions.filter(question => progress.answers[question.id]?.wrong === false).length;
   const cards = chapters.map((chapter, index) => {
-    const lessons = chapter.steps.filter(item => item.kind === "lesson");
-    const completed = lessons.filter(item => completedRoute.has(item.id)).length;
+    const {total, completed} = chapterLessonCounts(chapter);
     const items = chapterQuestions(chapter);
     const mastered = items.filter(item => progress.answers[item.id]?.wrong === false).length;
     const wrong = items.filter(item => progress.answers[item.id]?.wrong === true).length;
@@ -366,8 +418,8 @@ function renderCourseOverview() {
       '<div class="overview-kicker"><span>Раздел ' + ordinal(index + 1) + '</span>' +
       (step && chapter === current ? '<span class="overview-current">Сейчас на маршруте</span>' : '') + '</div>' +
       '<h2 id="overview-chapter-' + id + '">' + name + '</h2>' +
-      '<div class="overview-lesson-count"><span>Уроки</span><strong>' + completed + ' из ' + lessons.length + '</strong></div>' +
-      '<progress value="' + completed + '" max="' + lessons.length + '" aria-label="' + name + '. Пройдено уроков"></progress>' +
+      '<div class="overview-lesson-count"><span>Уроки</span><strong>' + completed + ' из ' + total + '</strong></div>' +
+      '<progress value="' + completed + '" max="' + total + '" aria-label="' + name + '. Пройдено уроков"></progress>' +
       '<p class="overview-question-count">Верных ответов: <strong>' + mastered + ' из ' + items.length + '</strong></p>' +
       '<div class="actions overview-card-actions">' + button("На карте", "open-chapter", chapter.id) +
       (wrong ? button("Ошибки: " + wrong, "chapter-errors", chapter.id, "primary") : '') + '</div></article>';
@@ -895,6 +947,18 @@ document.addEventListener("click", event => {
       currentNode?.scrollIntoView({block: "center"});
       break;
     }
+    case "show-chapter-picker":
+      if (page === "home") openChapterPicker(target, value);
+      break;
+    case "close-chapter-picker":
+      if (chapterPicker?.open) chapterPicker.close();
+      break;
+    case "choose-chapter":
+      if (page === "home" && chapterPicker?.open) {
+        chapterPicker.close();
+        showCourseChapter(value);
+      }
+      break;
     case "open-chapter":
     case "chapter-errors": {
       if (page !== "course-overview") break;
@@ -1032,10 +1096,7 @@ document.addEventListener("input", event => {
 
 document.addEventListener("change", event => {
   if (page !== "home" || event.target.id !== "chapter-select") return;
-  chapterView = event.target.value;
-  render();
-  revealScreen();
-  document.querySelector("#chapter-select")?.focus();
+  showCourseChapter(event.target.value);
 });
 document.addEventListener("submit", event => {
   if (event.target.id !== "exam-date" || !billing.active) return;
