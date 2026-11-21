@@ -28,6 +28,8 @@ const byTicket = new Map();
 const byTopic = new Map();
 const dailyTargets = [5, 10, 20];
 if (!dailyTargets.includes(progress.dailyTarget)) progress.dailyTarget = 10;
+const savedPageSize = 24;
+const savedView = {query: "", wrongOnly: false, limit: savedPageSize};
 let topicMistakesOnly = false;
 let chapters = [], chapterView = null;
 let page = "home", session, previousPage, ticker;
@@ -192,19 +194,60 @@ function bookmarkButton(question) {
     '" aria-pressed="' + saved + '">' + bookmarkLabel(question) + '</button>';
 }
 
+const searchText = value => value.toLowerCase().replaceAll("ё", "е");
+
+function matchingSavedQuestions() {
+  const query = searchText(savedView.query.trim());
+  const ticket = query.match(/^(?:билет\s*)?№?\s*(\d{1,2})$/u);
+  const terms = query.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return [...savedQuestions].reverse().map(id => byId.get(id)).filter(q => {
+    if (!q || (savedView.wrongOnly && progress.answers[q.id]?.wrong !== true)) return false;
+    if (ticket) return q.ticket === Number(ticket[1]);
+    const haystack = searchText(q.text + " " + q.topics.join(" "));
+    return terms.every(term => haystack.includes(term));
+  });
+}
+
+function savedResultRows(items) {
+  if (!items.length) return '<p class="muted empty-saved">В подборке нет вопросов. Попробуй изменить поиск или фильтр.</p>';
+  const rows = items.slice(0, savedView.limit).map(q => {
+    const wrong = progress.answers[q.id]?.wrong === true;
+    return '<article class="saved-row"><div class="saved-row-head"><span class="saved-row-meta">Билет ' + q.ticket + ' · Вопрос ' + q.num +
+      (wrong ? '<span class="saved-wrong">С ошибкой</span>' : '') + '</span>' +
+      '<button class="secondary saved-remove" data-action="bookmark" data-value="' +
+      escape(q.id) + '" aria-label="Убрать вопрос ' + q.num + ' из билета ' + q.ticket +
+      ' из сохранённых">Убрать</button></div><button class="saved-question" data-action="saved-one" data-value="' +
+      escape(q.id) + '"><strong>' + escape(q.text) + '</strong></button></article>';
+  }).join("");
+  return rows + (items.length > savedView.limit ?
+    button("Показать ещё", "saved-more", "", "secondary saved-more") : "");
+}
+
+function refreshSavedResults() {
+  const items = matchingSavedQuestions();
+  app.querySelector("#saved-count").textContent = "Найдено: " + items.length;
+  app.querySelector('[data-action="saved-practice"]').disabled = !items.length;
+  app.querySelector("#saved-list").innerHTML = savedResultRows(items);
+}
+
 function renderSavedQuestions() {
-  const items = [...savedQuestions].map(id => byId.get(id)).filter(Boolean).reverse();
-  const rows = items.map(q => '<article class="saved-row"><button class="saved-question" data-action="saved-one" data-value="' +
-    escape(q.id) + '"><span>Билет ' + q.ticket + ' · Вопрос ' + q.num + '</span><strong>' +
-    escape(q.text) + '</strong></button><button class="secondary saved-remove" data-action="bookmark" data-value="' +
-    escape(q.id) + '" aria-label="Убрать вопрос ' + q.num + ' из билета ' + q.ticket +
-    ' из сохранённых">Убрать</button></article>').join("");
+  const total = savedCount();
+  if (!total) {
+    app.innerHTML = panel("Сохранённые вопросы",
+      button("К прогрессу", "navigate", "profile") +
+      '<p class="muted empty-saved">Сохраняй вопросы во время урока или из разбора ответов. Здесь их можно повторить.</p>');
+    return;
+  }
+  const items = matchingSavedQuestions();
   app.innerHTML = panel("Сохранённые вопросы",
-    '<div class="actions saved-actions">' +
-    (items.length ? button("Тренировать подборку", "saved-practice", "", "primary") : "") +
-    button("К прогрессу", "navigate", "profile") + '</div>' +
-    (items.length ? '<div class="saved-list">' + rows + '</div>' :
-      '<p class="muted empty-saved">Сохраняй сложные вопросы во время урока или из разбора ответов. Здесь их можно повторить.</p>'));
+    '<div class="saved-tools"><label for="saved-search">Поиск по сохранённым</label>' +
+    '<input id="saved-search" type="search" maxlength="100" autocomplete="off" placeholder="Билет 5 или обгон" value="' +
+    escape(savedView.query) + '"><div class="saved-filter-row"><span id="saved-count" role="status">Найдено: ' + items.length +
+    '</span><button class="secondary" data-action="saved-filter" aria-pressed="' + savedView.wrongOnly +
+    '">Только ошибки</button></div></div><div class="actions saved-actions">' +
+    button("Тренировать подборку", "saved-practice", "", "primary", !items.length) +
+    button("К прогрессу", "navigate", "profile") + '</div><div id="saved-list" class="saved-list">' +
+    savedResultRows(items) + '</div>');
 }
 
 function todayQuestions(day = localDay()) {
@@ -585,7 +628,7 @@ function renderResult() {
   const message = retry && !completedRoute.has(session.routeStep.id) ?
     "Ответь правильно на все вопросы, чтобы открыть следующий этап." :
     session.timeout ? "Время вышло" : session.title;
-  const practiceBackLabels = {tickets: "К билетам", topics: "К темам", "course-overview": "К разделам"};
+  const practiceBackLabels = {tickets: "К билетам", topics: "К темам", "course-overview": "К разделам", saved: "К сохранённым"};
   const leaveLabel = session.routeStep ? "К маршруту" : session.blocks ? "К экзамену" :
     practiceBackLabels[previousPage] ?? "Продолжить обучение";
   const leaveAction = session.routeStep ? "course-current" : "navigate";
@@ -750,7 +793,8 @@ document.addEventListener("click", event => {
       save();
       if (page === "saved") {
         render();
-        app.querySelector?.(".saved-question, .saved-actions button")?.focus();
+        const nextTarget = app.querySelector?.(".saved-question") ?? app.querySelector?.('[data-value="profile"]');
+        nextTarget?.focus({preventScroll: true});
       } else {
         target.setAttribute("aria-pressed", String(savedQuestions.has(value)));
         target.textContent = bookmarkLabel(question);
@@ -763,7 +807,23 @@ document.addEventListener("click", event => {
       break;
     }
     case "saved-practice":
-      start(prioritized([...savedQuestions].map(id => byId.get(id)).filter(Boolean)).slice(0, 10), "Сохранённые вопросы");
+      if (page === "saved") start(prioritized(matchingSavedQuestions()).slice(0, 10), "Сохранённые вопросы");
+      break;
+    case "saved-filter":
+      if (page !== "saved") break;
+      savedView.wrongOnly = !savedView.wrongOnly;
+      savedView.limit = savedPageSize;
+      target.setAttribute("aria-pressed", String(savedView.wrongOnly));
+      refreshSavedResults();
+      break;
+    case "saved-more":
+      if (page !== "saved") break;
+      {
+        const firstNew = savedView.limit;
+        savedView.limit += savedPageSize;
+        refreshSavedResults();
+        app.querySelectorAll(".saved-question")[firstNew]?.focus();
+      }
       break;
     case "mistakes": start(shuffled(errors()).slice(0, 10), "Работа над ошибками"); break;
     case "due": if (billing.active) start(questions.filter(q => progress.answers[q.id]?.due <= Date.now()).sort((a,b) => progress.answers[a.id].due - progress.answers[b.id].due).slice(0, 10), "Повторение по расписанию"); break;
@@ -799,6 +859,13 @@ document.addEventListener("click", event => {
     case "buy": if (page === "pro") void buy(target); break;
   }
 });
+document.addEventListener("input", event => {
+  if (page !== "saved" || event.target.id !== "saved-search") return;
+  savedView.query = event.target.value;
+  savedView.limit = savedPageSize;
+  refreshSavedResults();
+});
+
 document.addEventListener("change", event => {
   if (page !== "home" || event.target.id !== "chapter-select") return;
   chapterView = event.target.value;
