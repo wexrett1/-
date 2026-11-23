@@ -8,6 +8,7 @@ from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parents[1] / "dist"
 MODULES = ("config.js", "course.js", "lesson-notes.js", "study.js", "app.js")
+ILLUSTRATION_MIME = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
 
 def read(name):
@@ -22,7 +23,12 @@ def data_url(path, mime):
 def build(output):
     questions = json.loads(read("data/tickets.json"))
     image_names = {item["image"] for item in questions if item["image"]}
-    images = {name: data_url(ASSETS / "data" / "images" / name, "image/jpeg") for name in sorted(image_names)}
+    images = {}
+    for name in sorted(image_names):
+        mime = ILLUSTRATION_MIME.get(Path(name).suffix)
+        if mime is None:
+            raise ValueError(f"Unsupported illustration format: {name}")
+        images[name] = data_url(ASSETS / "data" / "images" / name, mime)
     data = json.dumps({"questions": questions, "images": images}, ensure_ascii=False, separators=(",", ":"))
     scripts = ["globalThis.PDD_OFFLINE_DATA = " + data.replace("<", r"\u003c") + ";"]
     for module in MODULES:

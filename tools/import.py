@@ -41,6 +41,18 @@ def explanation(question, question_id):
     return note[:rule.start()].strip(), rule.group(1).strip()
 
 
+def illustration_name(path):
+    with path.open("rb") as image:
+        header = image.read(12)
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return path.with_suffix(".webp").name
+    if header.startswith(bytes.fromhex("ffd8ff")):
+        return path.with_suffix(".jpg").name
+    if header.startswith(bytes.fromhex("89504e470d0a1a0a")):
+        return path.with_suffix(".png").name
+    raise ValueError(f"Unsupported illustration format: {path}")
+
+
 for path in sorted((source / "questions/A_B/tickets").glob("*.json")):
     for question in json.loads(path.read_text(encoding="utf-8-sig")):
         ticket = int(re.search(r"\d+", question["ticket_number"]).group())
@@ -51,8 +63,9 @@ for path in sorted((source / "questions/A_B/tickets").glob("*.json")):
         original = question.get("image") or ""
         image = ""
         if original and Path(original).name != "no_image.jpg":
-            image = Path(original).name
-            shutil.copyfile(source / original, output / "images" / image)
+            original_path = source / original
+            image = illustration_name(original_path)
+            shutil.copyfile(original_path, output / "images" / image)
         question_id = f"{ticket}-{num}-{question['id']}"
         reason, reference = explanation(question, question_id)
         assert reason, (ticket, num, "missing explanation")

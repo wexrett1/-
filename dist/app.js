@@ -535,7 +535,9 @@ function renderExamHistory() {
 }
 
 function questionStamp(question) {
-  const value = JSON.stringify([question.text, question.choices, question.correct, question.image]);
+  // Preserve saved attempts from when the same WebP illustrations had .jpg filenames.
+  const image = question.image.replace(/\.webp$/, ".jpg");
+  const value = JSON.stringify([question.text, question.choices, question.correct, image]);
   let stamp = 2166136261;
   for (let i = 0; i < value.length; i++) stamp = Math.imul(stamp ^ value.charCodeAt(i), 16777619);
   return stamp >>> 0;
